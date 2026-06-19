@@ -1,6 +1,8 @@
 import { useState, useRef } from "react"
-import { pipeline } from "@huggingface/transformers"
+import * as webllm from "@mlc-ai/web-llm"
 import "./App.css"
+
+const MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
 
 function App() {
   const [notes, setNotes] = useState("")
@@ -11,26 +13,24 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [cardCount, setCardCount] = useState("8")
-  const generatorRef = useRef(null)
+  const [quizMode, setQuizMode] = useState(false)
+  const [userAnswer, setUserAnswer] = useState("")
+  const [quizIndex, setQuizIndex] = useState(0)
+  const [quizResult, setQuizResult] = useState(null)
+  const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 })
+  const [shuffledCards, setShuffledCards] = useState([])
+  const engineRef = useRef(null)
 
-  async function getGenerator() {
-    if (generatorRef.current) return generatorRef.current
-
-    const generator = await pipeline(
-      "text-generation",
-      "onnx-community/gemma-3-1b-it-ONNX",
-      {
-        dtype: "q8",
-        progress_callback: (progress) => {
-          if (progress.status === "progress") {
-            setLoadingMessage(`Downloading model: ${Math.round(progress.progress)}%`)
-          }
-        }
+  async function getEngine() {
+    if (engineRef.current) return engineRef.current
+    const engine = await webllm.CreateMLCEngine(MODEL, {
+      initProgressCallback: (progress) => {
+        const pct = Math.round(progress.progress * 100)
+        setLoadingMessage(`Downloading model... ${pct}%`)
       }
-    )
-
-    generatorRef.current = generator
-    return generator
+    })
+    engineRef.current = engine
+    return engine
   }
 
   async function generateFlashcards() {
@@ -53,7 +53,7 @@ function App() {
     }
 
     try {
-      const generator = await getGenerator()
+      const engine = await getEngine()
       let allCards = []
       let attempts = 0
 
@@ -61,21 +61,25 @@ function App() {
         const remaining = needed - allCards.length
         setLoadingMessage(`Generating flashcards... (${allCards.length}/${needed})`)
 
-        const messages = [
-          {
-            role: "system",
-            content: `You are a flashcard generator. Return ONLY a JSON array with no extra text.
-            Each item must have a "question" and "answer" field. Example:
-            [{"question": "What is X?", "answer": "X is..."}]`
-          },
-          {
-            role: "user",
-            content: `Generate EXACTLY ${remaining} flashcards from these notes. Return exactly ${remaining} items in the array, no more no less: ${notes}`
-          }
-        ]
+        const reply = await engine.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: `You are a flashcard generator. Return ONLY a JSON array with no extra text.
+              Each item must have a "question" and "answer" field.
+              Make answers detailed and thorough, at least 2-3 sentences each.
+              Example: [{"question": "What is X?", "answer": "X is... It works by... This is important because..."}]`
+            },
+            {
+              role: "user",
+              content: `Generate EXACTLY ${remaining} flashcards from these notes. Return exactly ${remaining} items in the array, no more no less: ${notes}`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        })
 
-        const output = await generator(messages, { max_new_tokens: 1000 })
-        const text = output[0].generated_text.at(-1).content
+        const text = reply.choices[0].message.content
         const newCards = parseCards(text)
         allCards = [...allCards, ...newCards]
         attempts++
@@ -103,6 +107,29 @@ function App() {
   function handleNext() {
     setCurrentIndex((i) => Math.min(i + 1, cards.length - 1))
     setFlipped(false)
+  }
+
+  function startQuiz() {
+    const shuffled = [...cards].sort(() => Math.random() - 0.5)
+    setShuffledCards(shuffled)
+    setQuizMode(true)
+    setQuizIndex(0)
+    setUserAnswer("")
+    setQuizResult(null)
+    setQuizScore({ correct: 0, total: 0 })
+  }
+
+  function nextQuizCard(correct) {
+    if (correct) {
+      setQuizScore(s => ({ ...s, correct: s.correct + 1 }))
+    }
+    if (quizIndex + 1 < shuffledCards.length) {
+      setQuizIndex(i => i + 1)
+      setUserAnswer("")
+      setQuizResult(null)
+    } else {
+      setQuizMode(false)
+    }
   }
 
   return (
@@ -163,6 +190,61 @@ function App() {
             <button className="nav-btn" onClick={handleNext} disabled={currentIndex === cards.length - 1}>
               Next →
             </button>
+          </div>
+
+          <button className="quiz-btn" onClick={startQuiz}>
+            ✏️ Try it yourself
+          </button>
+        </div>
+      )}
+
+      {quizMode && (
+        <div className="quiz-overlay">
+          <div className="quiz-box">
+            <div className="quiz-header">
+              <p className="quiz-counter">{quizIndex + 1} / {shuffledCards.length}</p>
+              <p className="quiz-score">✅ {quizScore.correct} / {quizScore.total}</p>
+              <button className="quiz-close" onClick={() => setQuizMode(false)}>✕</button>
+            </div>
+
+            <p className="quiz-question">{shuffledCards[quizIndex]?.question}</p>
+
+            {quizResult === null ? (
+              <>
+                <textarea
+                  className="quiz-input"
+                  placeholder="Type your answer..."
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                />
+                <button
+                  className="quiz-check-btn"
+                  onClick={() => {
+                    if (!userAnswer.trim()) return
+                    setQuizResult(shuffledCards[quizIndex].answer)
+                    setQuizScore(s => ({ ...s, total: s.total + 1 }))
+                  }}
+                >
+                  Check Answer
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="quiz-answer">
+                  <p className="quiz-answer-label">Correct Answer:</p>
+                  <p>{quizResult}</p>
+                </div>
+                <p className="quiz-your-answer-label">Your Answer: <span>{userAnswer}</span></p>
+                <div className="quiz-feedback-btns">
+                  <button className="quiz-correct-btn" onClick={() => nextQuizCard(true)}>
+                    ✅ Got it
+                  </button>
+                  <button className="quiz-wrong-btn" onClick={() => nextQuizCard(false)}>
+                    ❌ Missed it
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
