@@ -46,7 +46,7 @@ function App() {
         if (pct < 100) {
           setLoadingMessage(`Downloading model... ${pct}%`)
         } else {
-          setLoadingMessage("Loading model...")
+          setLoadingMessage(`Loading model... ${pct}%`)
         }
       }
     })
@@ -276,7 +276,7 @@ Did the student get it right? Give brief feedback.`
           </div>
 
           <button className="quiz-btn" onClick={startQuiz}>
-            ✏️ Try it yourself
+            📝 Try it yourself
           </button>
         </div>
       )}
