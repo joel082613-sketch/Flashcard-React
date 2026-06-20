@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import * as webllm from "@mlc-ai/web-llm"
 import "./App.css"
 
@@ -19,14 +19,35 @@ function App() {
   const [quizResult, setQuizResult] = useState(null)
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 })
   const [shuffledCards, setShuffledCards] = useState([])
+  const [slowLoad, setSlowLoad] = useState(false)
+  const [aiFeedback, setAiFeedback] = useState(null)
+  const [checkingAnswer, setCheckingAnswer] = useState(false)
   const engineRef = useRef(null)
+
+  useEffect(() => {
+  if (cards.length > 0) {
+    document.body.style.overflowY = "auto"
+    document.documentElement.style.overflowY = "auto"
+  } else {
+    document.body.style.overflowY = "hidden"
+    document.documentElement.style.overflowY = "hidden"
+  }
+  return () => {
+    document.body.style.overflowY = "auto"
+    document.documentElement.style.overflowY = "auto"
+  }
+}, [cards])
 
   async function getEngine() {
     if (engineRef.current) return engineRef.current
     const engine = await webllm.CreateMLCEngine(MODEL, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading model... ${pct}%`)
+        if (pct < 100) {
+          setLoadingMessage(`Downloading model... ${pct}%`)
+        } else {
+          setLoadingMessage("Loading model...")
+        }
       }
     })
     engineRef.current = engine
@@ -38,8 +59,10 @@ function App() {
     setLoading(true)
     setError("")
     setCards([])
-    setLoadingMessage("Loading AI model...")
+    setSlowLoad(false)
+    setLoadingMessage("Preparing...")
 
+    const slowTimer = setTimeout(() => setSlowLoad(true), 30000)
     const needed = parseInt(cardCount) || 8
 
     function parseCards(raw) {
@@ -54,7 +77,9 @@ function App() {
 
     try {
       const engine = await getEngine()
-      let allCards = []
+setLoadingMessage("Loading model...")
+await new Promise(r => setTimeout(r, 800))
+let allCards = []
       let attempts = 0
 
       while (allCards.length < needed && attempts < 3) {
@@ -95,6 +120,8 @@ function App() {
       setError("Something went wrong: " + err.message)
     }
 
+    clearTimeout(slowTimer)
+    setSlowLoad(false)
     setLoading(false)
     setLoadingMessage("")
   }
@@ -116,20 +143,68 @@ function App() {
     setQuizIndex(0)
     setUserAnswer("")
     setQuizResult(null)
+    setAiFeedback(null)
     setQuizScore({ correct: 0, total: 0 })
   }
 
-  function nextQuizCard(correct) {
-    if (correct) {
-      setQuizScore(s => ({ ...s, correct: s.correct + 1 }))
-    }
+  function nextQuizCard() {
     if (quizIndex + 1 < shuffledCards.length) {
       setQuizIndex(i => i + 1)
       setUserAnswer("")
       setQuizResult(null)
+      setAiFeedback(null)
     } else {
       setQuizMode(false)
     }
+  }
+
+  async function checkAnswer() {
+    if (!userAnswer.trim()) return
+    setCheckingAnswer(true)
+    setQuizScore(s => ({ ...s, total: s.total + 1 }))
+
+    try {
+      const engine = await getEngine()
+      const reply = await engine.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful quiz evaluator. Evaluate the student's answer compared to the correct answer. Be encouraging, brief (2-3 sentences), and tell them if they got it right, partially right, or wrong and why."
+          },
+          {
+            role: "user",
+            content: `Question: ${shuffledCards[quizIndex].question}
+Correct Answer: ${shuffledCards[quizIndex].answer}
+Student's Answer: ${userAnswer}
+
+Did the student get it right? Give brief feedback.`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 150
+      })
+
+      const feedback = reply.choices[0].message.content
+      setAiFeedback(feedback)
+      setQuizResult(shuffledCards[quizIndex].answer)
+
+      const isCorrect =
+        feedback.toLowerCase().includes("correct") ||
+        feedback.toLowerCase().includes("right") ||
+        feedback.toLowerCase().includes("great") ||
+        feedback.toLowerCase().includes("good job") ||
+        feedback.toLowerCase().includes("well done")
+
+      if (isCorrect) {
+        setQuizScore(s => ({ ...s, correct: s.correct + 1 }))
+      }
+
+    } catch (err) {
+      setQuizResult(shuffledCards[quizIndex].answer)
+      setAiFeedback("Could not evaluate answer. Check the correct answer above.")
+    }
+
+    setCheckingAnswer(false)
   }
 
   return (
@@ -160,7 +235,15 @@ function App() {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loadingMessage && <p className="loading-msg">{loadingMessage}</p>}
+
+      {loadingMessage && (
+        <div>
+          <p className="loading-msg">{loadingMessage}</p>
+          {slowLoad && (
+            <p className="slow-load">⏳ Taking longer than expected... the model is still downloading, hang tight!</p>
+          )}
+        </div>
+      )}
 
       <button className="generate-btn" onClick={generateFlashcards} disabled={loading}>
         {loading ? "Loading..." : "Generate Flashcards"}
@@ -219,30 +302,31 @@ function App() {
                 />
                 <button
                   className="quiz-check-btn"
-                  onClick={() => {
-                    if (!userAnswer.trim()) return
-                    setQuizResult(shuffledCards[quizIndex].answer)
-                    setQuizScore(s => ({ ...s, total: s.total + 1 }))
-                  }}
+                  onClick={checkAnswer}
+                  disabled={checkingAnswer}
                 >
-                  Check Answer
+                  {checkingAnswer ? "Checking..." : "Check Answer"}
                 </button>
               </>
             ) : (
               <>
+                {aiFeedback && (
+                  <div className="ai-feedback">
+                    <p className="ai-feedback-label">🤖 AI Feedback</p>
+                    <p>{aiFeedback}</p>
+                  </div>
+                )}
+
                 <div className="quiz-answer">
                   <p className="quiz-answer-label">Correct Answer:</p>
                   <p>{quizResult}</p>
                 </div>
+
                 <p className="quiz-your-answer-label">Your Answer: <span>{userAnswer}</span></p>
-                <div className="quiz-feedback-btns">
-                  <button className="quiz-correct-btn" onClick={() => nextQuizCard(true)}>
-                    ✅ Got it
-                  </button>
-                  <button className="quiz-wrong-btn" onClick={() => nextQuizCard(false)}>
-                    ❌ Missed it
-                  </button>
-                </div>
+
+                <button className="quiz-next-btn" onClick={nextQuizCard}>
+                  {quizIndex + 1 < shuffledCards.length ? "Next Question →" : "Finish Quiz"}
+                </button>
               </>
             )}
           </div>
