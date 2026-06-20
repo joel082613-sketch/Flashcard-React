@@ -25,18 +25,9 @@ function App() {
   const engineRef = useRef(null)
 
   useEffect(() => {
-  if (cards.length > 0) {
-    document.body.style.overflowY = "auto"
-    document.documentElement.style.overflowY = "auto"
-  } else {
-    document.body.style.overflowY = "hidden"
-    document.documentElement.style.overflowY = "hidden"
-  }
-  return () => {
-    document.body.style.overflowY = "auto"
-    document.documentElement.style.overflowY = "auto"
-  }
-}, [cards])
+    document.body.style.overflowY = cards.length > 0 ? "auto" : "hidden"
+    return () => { document.body.style.overflowY = "auto" }
+  }, [cards])
 
   async function getEngine() {
     if (engineRef.current) return engineRef.current
@@ -46,7 +37,7 @@ function App() {
         if (pct < 100) {
           setLoadingMessage(`Downloading model... ${pct}%`)
         } else {
-          setLoadingMessage(`Loading model... ${pct}%`)
+          setLoadingMessage("Loading model...")
         }
       }
     })
@@ -77,9 +68,7 @@ function App() {
 
     try {
       const engine = await getEngine()
-setLoadingMessage("Loading model...")
-await new Promise(r => setTimeout(r, 800))
-let allCards = []
+      let allCards = []
       let attempts = 0
 
       while (allCards.length < needed && attempts < 3) {
@@ -276,7 +265,7 @@ Did the student get it right? Give brief feedback.`
           </div>
 
           <button className="quiz-btn" onClick={startQuiz}>
-            📝 Try it yourself
+            ✏️ Try it yourself
           </button>
         </div>
       )}
