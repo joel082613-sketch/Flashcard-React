@@ -808,3 +808,12 @@ p {
 .quiz-btn {
   width: 100% !important;
 }
+
+html,
+body,
+#root,
+.container {
+  border-left: none !important;
+  border-right: none !important;
+  border-inline: none !important;
+}
