@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.84",
+    "@supabase/supabase-js": "^2.108.2",
     "approve": "^0.0.12",
     "npm": "^11.17.0",
     "react": "^19.2.6",
