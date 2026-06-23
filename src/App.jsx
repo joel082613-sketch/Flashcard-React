@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import * as webllm from "@mlc-ai/web-llm"
 import supabase from "./supabase"
 import "./App.css"
@@ -6,7 +6,8 @@ import "./App.css"
 const MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
 
 function App() {
-  const [pin, setPin] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [numberId, setNumberId] = useState("")
   const [loggedIn, setLoggedIn] = useState(false)
   const [loginError, setLoginError] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
@@ -32,8 +33,32 @@ function App() {
   const [aiFeedback, setAiFeedback] = useState("")
   const [aiCorrect, setAiCorrect] = useState(null)
   const [checkingAnswer, setCheckingAnswer] = useState(false)
+  const [isShuffling, setIsShuffling] = useState(false)
 
   const engineRef = useRef(null)
+  const notesRef = useRef(null)
+
+  const cleanFirstName = firstName.trim().toLowerCase()
+  const cleanNumberId = numberId.trim()
+  const userKey = `${cleanFirstName}-${cleanNumberId}`
+
+  function resizeNotesBox() {
+    const box = notesRef.current
+    if (!box) return
+
+    const maxHeight = 360
+
+    box.style.height = "auto"
+
+    const newHeight = Math.min(box.scrollHeight, maxHeight)
+
+    box.style.height = `${newHeight}px`
+    box.style.overflowY = box.scrollHeight > maxHeight ? "auto" : "hidden"
+  }
+
+  useEffect(() => {
+    resizeNotesBox()
+  }, [notes])
 
   async function getEngine() {
     if (engineRef.current) return engineRef.current
@@ -49,9 +74,11 @@ function App() {
     return engine
   }
 
-  async function checkAnswerWithAI() {
-    if (!userAnswer.trim()) return
+  async function checkAnswerWithAI(answerOverride = null) {
+    const answerToCheck = (answerOverride ?? userAnswer).trim()
 
+if (!answerToCheck) return
+if (!shuffledCards[quizIndex]) return
     setCheckingAnswer(true)
     setAiFeedback("")
     setAiCorrect(null)
@@ -84,7 +111,7 @@ Rules:
 
 Correct answer: ${currentCard.answer}
 
-Student answer: ${userAnswer}
+Student answer: ${answerToCheck}
 
 Grade the student answer.`
           }
@@ -123,45 +150,88 @@ Grade the student answer.`
       setAiCorrect(false)
       setAiFeedback("Something went wrong while checking your answer.")
       setQuizResult(shuffledCards[quizIndex]?.answer || "")
+
+      setQuizScore((score) => ({
+        correct: score.correct,
+        total: score.total + 1
+      }))
     }
 
     setCheckingAnswer(false)
   }
 
   async function handleLogin() {
-    if (!pin.trim()) return
+    if (!cleanFirstName || !cleanNumberId) {
+      setLoginError("Please enter your first name and number ID.")
+      return
+    }
 
     setLoginError("")
     setLoginLoading(true)
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
-      .select("pin")
-      .eq("pin", pin)
-      .single()
+      .select("*")
+      .eq("first_name", cleanFirstName)
+      .eq("number_id", cleanNumberId)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Login error:", error)
+      setLoginError("Database error: " + error.message)
+      setLoginLoading(false)
+      return
+    }
 
     if (data) {
       setLoggedIn(true)
-      loadSavedDecks(pin)
+      loadSavedDecks(userKey)
     } else {
-      setLoginError("PIN not found. Would you like to create an account?")
+      setLoginError("Account not found. Would you like to create one?")
     }
 
     setLoginLoading(false)
   }
 
   async function handleCreateAccount() {
-    if (!pin.trim()) return
+    if (!cleanFirstName || !cleanNumberId) {
+      setLoginError("Please enter your first name and number ID.")
+      return
+    }
 
     setLoginError("")
     setLoginLoading(true)
 
-    const { error } = await supabase
+    const { data: existingUser, error: checkError } = await supabase
       .from("users")
-      .insert([{ pin }])
+      .select("*")
+      .eq("first_name", cleanFirstName)
+      .eq("number_id", cleanNumberId)
+      .maybeSingle()
+
+    if (checkError) {
+      console.error("Create account check error:", checkError)
+      setLoginError("Database error: " + checkError.message)
+      setLoginLoading(false)
+      return
+    }
+
+    if (existingUser) {
+      setLoginError("That account already exists. Try logging in.")
+      setLoginLoading(false)
+      return
+    }
+
+    const { error } = await supabase.from("users").insert([
+      {
+        pin: userKey,
+        first_name: cleanFirstName,
+        number_id: cleanNumberId
+      }
+    ])
 
     if (error) {
-      setLoginError("That PIN is already taken, try another one!")
+      setLoginError("Could not create account: " + error.message)
     } else {
       setLoggedIn(true)
       setSavedDecks([])
@@ -170,12 +240,18 @@ Grade the student answer.`
     setLoginLoading(false)
   }
 
-  async function loadSavedDecks(userPin) {
-    const { data } = await supabase
+  async function loadSavedDecks(currentUserKey) {
+    const { data, error } = await supabase
       .from("decks")
       .select("*")
-      .eq("user_pin", userPin)
+      .eq("user_pin", currentUserKey)
       .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Load saved decks error:", error)
+      setError("Could not load saved decks: " + error.message)
+      return
+    }
 
     if (data) setSavedDecks(data)
   }
@@ -222,6 +298,13 @@ Grade the student answer.`
     setCurrentIndex(0)
     setFlipped(false)
     setActiveDeckName(deck.name || "Untitled Deck")
+    setQuizMode(false)
+    setQuizFinished(false)
+    setUserAnswer("")
+    setQuizResult(null)
+    setAiFeedback("")
+    setAiCorrect(null)
+    setIsShuffling(false)
   }
 
   function getGroupedSavedDecks() {
@@ -252,18 +335,16 @@ Grade the student answer.`
     const notesHash = makeNotesHash(notesText)
     const name = await generateDeckTitle(notesText)
 
-    const { error } = await supabase
-      .from("decks")
-      .insert([
-        {
-          user_pin: pin,
-          notes_hash: notesHash,
-          notes: notesText,
-          name,
-          cards: generatedCards,
-          card_count: count
-        }
-      ])
+    const { error } = await supabase.from("decks").insert([
+      {
+        user_pin: userKey,
+        notes_hash: notesHash,
+        notes: notesText,
+        name,
+        cards: generatedCards,
+        card_count: count
+      }
+    ])
 
     if (error) {
       console.error("Save deck error:", error)
@@ -272,7 +353,7 @@ Grade the student answer.`
     }
 
     setActiveDeckName(name)
-    loadSavedDecks(pin)
+    loadSavedDecks(userKey)
   }
 
   async function checkExistingDeck(notesText, count) {
@@ -281,7 +362,7 @@ Grade the student answer.`
     const { data, error } = await supabase
       .from("decks")
       .select("*")
-      .eq("user_pin", pin)
+      .eq("user_pin", userKey)
       .eq("notes_hash", notesHash)
       .eq("card_count", count)
       .maybeSingle()
@@ -305,6 +386,8 @@ Grade the student answer.`
     setCards([])
     setActiveDeckName("")
     setSlowLoad(false)
+    setLoadingMessage("")
+    setIsShuffling(false)
 
     const needed = parseInt(cardCount) || 8
     const existing = await checkExistingDeck(notes, needed)
@@ -312,6 +395,8 @@ Grade the student answer.`
     if (existing) {
       loadDeck(existing)
       setLoading(false)
+      setLoadingMessage("")
+      setSlowLoad(false)
       return
     }
 
@@ -322,6 +407,7 @@ Grade the student answer.`
       const questions = [...raw.matchAll(/"question"\s*:\s*"([^"]+)"/g)].map(
         (m) => m[1]
       )
+
       const answers = [...raw.matchAll(/"answer"\s*:\s*"([^"]+)"/g)].map(
         (m) => m[1]
       )
@@ -383,15 +469,21 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       setCurrentIndex(0)
       setFlipped(false)
 
+      clearTimeout(slowTimer)
+      setSlowLoad(false)
+      setLoading(false)
+      setLoadingMessage("")
+
       await saveDeck(notes, finalCards, needed)
     } catch (err) {
+      console.error(err)
       setError("Something went wrong: " + err.message)
-    }
 
-    clearTimeout(slowTimer)
-    setSlowLoad(false)
-    setLoading(false)
-    setLoadingMessage("")
+      clearTimeout(slowTimer)
+      setSlowLoad(false)
+      setLoading(false)
+      setLoadingMessage("")
+    }
   }
 
   async function deleteAccount() {
@@ -402,11 +494,17 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
     if (!confirmed) return
 
     try {
-      await supabase.from("decks").delete().eq("user_pin", pin)
-      await supabase.from("users").delete().eq("pin", pin)
+      await supabase.from("decks").delete().eq("user_pin", userKey)
+
+      await supabase
+        .from("users")
+        .delete()
+        .eq("first_name", cleanFirstName)
+        .eq("number_id", cleanNumberId)
 
       setLoggedIn(false)
-      setPin("")
+      setFirstName("")
+      setNumberId("")
       setNotes("")
       setCards([])
       setSavedDecks([])
@@ -414,6 +512,8 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       setCurrentIndex(0)
       setFlipped(false)
       setActiveDeckName("")
+      setQuizMode(false)
+      setIsShuffling(false)
 
       alert("Account deleted successfully.")
     } catch (err) {
@@ -433,7 +533,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       .from("decks")
       .delete()
       .eq("id", deck.id)
-      .eq("user_pin", pin)
+      .eq("user_pin", userKey)
 
     if (error) {
       console.error("Delete saved deck error:", error)
@@ -464,6 +564,8 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       setCurrentIndex(0)
       setFlipped(false)
       setActiveDeckName("")
+      setQuizMode(false)
+      setIsShuffling(false)
     }
   }
 
@@ -475,6 +577,26 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
   function handleNext() {
     setCurrentIndex((i) => Math.min(i + 1, cards.length - 1))
     setFlipped(false)
+  }
+
+  function shuffleFlashcards() {
+    if (cards.length < 2 || isShuffling) return
+
+    setIsShuffling(true)
+    setFlipped(false)
+
+    setTimeout(() => {
+      const shuffled = [...cards]
+
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+
+      setCards(shuffled)
+      setCurrentIndex(0)
+      setIsShuffling(false)
+    }, 850)
   }
 
   function startQuiz() {
@@ -511,16 +633,24 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       <div className="container">
         <div className="login-box">
           <h1>Flashcard Generator</h1>
-          <p>Enter your PIN to login or create a new account</p>
+          <p>Enter your first name and number ID</p>
+
+          <input
+            className="pin-input"
+            type="text"
+            placeholder="First name..."
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
 
           <input
             className="pin-input"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            placeholder="Enter your PIN..."
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            placeholder="Number ID..."
+            value={numberId}
+            onChange={(e) => setNumberId(e.target.value.replace(/\D/g, ""))}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           />
 
@@ -556,12 +686,15 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             className="logout-btn"
             onClick={() => {
               setLoggedIn(false)
-              setPin("")
+              setFirstName("")
+              setNumberId("")
               setCards([])
               setNotes("")
               setSavedDecks([])
               setSelectedDeckIds({})
               setActiveDeckName("")
+              setQuizMode(false)
+              setIsShuffling(false)
             }}
           >
             Logout
@@ -632,11 +765,23 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       )}
 
       <textarea
-        className="notes-input"
-        placeholder="Paste your notes here..."
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-      />
+  ref={notesRef}
+  className="notes-input"
+  placeholder="Paste your notes here..."
+  value={notes}
+  onChange={(e) => {
+    setNotes(e.target.value)
+  }}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+
+      if (!loading && notes.trim()) {
+        generateFlashcards()
+      }
+    }
+  }}
+/>
 
       <div className="card-count">
         <label>Number of flashcards</label>
@@ -676,8 +821,8 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
 
-      {cards.length > 0 && (
-        <div className="cards-section">
+      {cards.length > 0 && cards[currentIndex] && (
+        <div className={`cards-section ${isShuffling ? "is-shuffling" : ""}`}>
           {activeDeckName && (
             <p className="active-deck-name">📚 {activeDeckName}</p>
           )}
@@ -687,13 +832,17 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
           </p>
 
           <div
-            className={`card ${flipped ? "flipped" : ""}`}
-            onClick={() => setFlipped(!flipped)}
+            className={`card ${flipped ? "flipped" : ""} ${
+              isShuffling ? "shuffle-animation" : ""
+            }`}
+            onClick={() => !isShuffling && setFlipped(!flipped)}
           >
             <div className="card-inner">
               <div className="card-front">
                 <p>{cards[currentIndex].question}</p>
-                <span className="hint">Click to reveal answer</span>
+                <span className="hint">
+                  {isShuffling ? "Mixing your deck..." : "Click to reveal answer"}
+                </span>
               </div>
 
               <div className="card-back">
@@ -707,21 +856,29 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             <button
               className="nav-btn"
               onClick={handlePrev}
-              disabled={currentIndex === 0}
+              disabled={currentIndex === 0 || isShuffling}
             >
               ← Prev
             </button>
 
             <button
+              className="nav-btn shuffle-btn"
+              onClick={shuffleFlashcards}
+              disabled={cards.length < 2 || isShuffling}
+            >
+              {isShuffling ? "🔄 Shuffling..." : "🔀 Shuffle"}
+            </button>
+
+            <button
               className="nav-btn"
               onClick={handleNext}
-              disabled={currentIndex === cards.length - 1}
+              disabled={currentIndex === cards.length - 1 || isShuffling}
             >
               Next →
             </button>
           </div>
 
-          <button className="quiz-btn" onClick={startQuiz}>
+          <button className="quiz-btn" onClick={startQuiz} disabled={isShuffling}>
             ✏️ Try it yourself
           </button>
         </div>
@@ -790,11 +947,17 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                 {quizResult === null ? (
                   <>
                     <textarea
-                      className="quiz-input"
-                      placeholder="Type your answer..."
-                      value={userAnswer}
-                      onChange={(e) => setUserAnswer(e.target.value)}
-                    />
+  className="quiz-input"
+  placeholder="Type your answer..."
+  value={userAnswer}
+  onChange={(e) => setUserAnswer(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" && !e.shiftKey && !checkingAnswer) {
+      e.preventDefault()
+      checkAnswerWithAI()
+    }
+  }}
+/>
 
                     <button
                       className="quiz-check-btn"
