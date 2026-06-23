@@ -1,18 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap');
+
 @property --c1 {
   syntax: '<color>';
   inherits: false;
   initial-value: #0d0221;
 }
+
 @property --c2 {
   syntax: '<color>';
   inherits: false;
   initial-value: #1a0533;
 }
+
 @property --c3 {
   syntax: '<color>';
   inherits: false;
   initial-value: #0d1b69;
 }
+
 @property --c4 {
   syntax: '<color>';
   inherits: false;
@@ -26,24 +31,28 @@
     --c3: #0d1b69;
     --c4: #2d0b4e;
   }
+
   25% {
     --c1: #0a1628;
     --c2: #0d3b6e;
     --c3: #064e3b;
     --c4: #1a0533;
   }
+
   50% {
     --c1: #2d0b4e;
     --c2: #4a0072;
     --c3: #1a0533;
     --c4: #0a1628;
   }
+
   75% {
     --c1: #064e3b;
     --c2: #0d0221;
     --c3: #2d0b4e;
     --c4: #0d3b6e;
   }
+
   100% {
     --c1: #0d0221;
     --c2: #1a0533;
@@ -53,9 +62,20 @@
 }
 
 @keyframes popout {
-  0% { transform: scale(0.8); opacity: 0; }
-  60% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 * {
@@ -66,37 +86,58 @@
   outline: none;
 }
 
-html, body {
+html,
+body {
   min-height: 100vh;
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  border-left: none !important;
+  border-right: none !important;
+  border-inline: none !important;
 }
 
 body {
   background: linear-gradient(-45deg, var(--c1), var(--c2), var(--c3), var(--c4));
   background-size: 300% 300%;
   animation: gradientMove 10s ease infinite;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
 #root {
   min-height: 100vh;
   width: 100%;
+  border-left: none !important;
+  border-right: none !important;
+  border-inline: none !important;
 }
 
 .container {
-  max-width: 700px;
-  margin: 60px auto;
+  width: 850px;
+  max-width: 100%;
+  margin: 90px auto 60px;
   padding: 0 24px;
+  border-left: none !important;
+  border-right: none !important;
+  border-inline: none !important;
+}
+
+/* Title */
+
+h1,
+.top-bar h1,
+.login-box h1 {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 42px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #e0e7ff;
+  text-align: center;
 }
 
 h1 {
-  font-size: 36px;
-  font-weight: 700;
-  color: #e0e7ff;
   margin-bottom: 8px;
-  text-align: center;
 }
 
 p {
@@ -105,6 +146,119 @@ p {
   margin-bottom: 24px;
   text-align: center;
 }
+
+/* Login */
+
+.login-box {
+  max-width: 520px;
+  margin: 140px auto 60px;
+  text-align: center;
+}
+
+.login-box h1 {
+  white-space: nowrap;
+}
+
+.login-box h1 {
+  margin-bottom: 8px;
+}
+
+.pin-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 18px;
+  border: 2px solid #3730a3 !important;
+  border-radius: 12px;
+  background: #1e1b4b;
+  color: #e0e7ff;
+  outline: none !important;
+  text-align: center;
+  letter-spacing: 1.5px;
+  margin-bottom: 16px;
+}
+
+.pin-input:focus {
+  border: 2px solid #818cf8 !important;
+}
+
+.pin-input::placeholder {
+  letter-spacing: normal;
+  color: #6b7280;
+}
+
+.pin-input::-webkit-outer-spin-button,
+.pin-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.login-error {
+  color: #fca5a5;
+  background: #450a0a;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* Top bar */
+
+.top-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.top-bar h1 {
+  margin: 0;
+  text-align: center;
+}
+
+.top-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.logout-btn,
+.delete-account-btn {
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.logout-btn {
+  background: transparent;
+  color: #6b7280;
+  border: 2px solid #3730a3 !important;
+}
+
+.logout-btn:hover {
+  color: #e0e7ff;
+  background: #1e1b4b;
+}
+
+.delete-account-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 2px solid #7f1d1d !important;
+}
+
+.delete-account-btn:hover {
+  background: #450a0a;
+  color: white;
+}
+
+/* Inputs */
 
 .notes-input {
   width: 100%;
@@ -157,6 +311,8 @@ p {
   border: 2px solid #818cf8 !important;
 }
 
+/* Buttons */
+
 .generate-btn {
   width: 100%;
   background: #6d28d9;
@@ -181,6 +337,27 @@ p {
   background: #3730a3;
   cursor: not-allowed;
 }
+
+.create-btn {
+  width: 100%;
+  background: transparent;
+  color: #a5b4fc;
+  border: 2px solid #3730a3 !important;
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.create-btn:hover {
+  background: #1e1b4b;
+  color: #e0e7ff;
+}
+
+/* Messages */
 
 .error {
   color: #fca5a5;
@@ -209,7 +386,143 @@ p {
   text-align: center;
 }
 
+/* Saved decks */
+
+.saved-decks {
+  margin-bottom: 16px;
+}
+
+.saved-label {
+  color: #818cf8;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.deck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.deck-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.deck-list::-webkit-scrollbar-track {
+  background: #0d0221;
+  border-radius: 10px;
+}
+
+.deck-list::-webkit-scrollbar-thumb {
+  background: #3730a3;
+  border-radius: 10px;
+}
+
+.deck-list::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5;
+}
+
+.deck-group {
+  background: rgba(30, 27, 75, 0.65);
+  border: 2px solid #3730a3 !important;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.deck-title {
+  color: #e0e7ff;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  margin: 0 0 8px;
+}
+
+.deck-version-controls,
+.deck-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.deck-version-select {
+  width: 140px;
+  height: 38px;
+  background: #1e1b4b;
+  color: #e0e7ff;
+  border: 2px solid #3730a3 !important;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deck-version-select:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
+}
+
+.load-deck-btn,
+.delete-deck-btn {
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-deck-btn {
+  background: transparent;
+  color: #a5b4fc;
+  border: 2px solid #3730a3 !important;
+}
+
+.load-deck-btn:hover {
+  background: #2d2a6e;
+  color: #e0e7ff;
+}
+
+.delete-deck-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 2px solid #7f1d1d !important;
+}
+
+.delete-deck-btn:hover {
+  background: #450a0a;
+  color: white;
+}
+
+/* Older deck button support */
+
+.deck-btn {
+  background: #1e1b4b;
+  color: #a5b4fc;
+  border: 2px solid #3730a3 !important;
+  padding: 10px 16px;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.deck-btn:hover {
+  background: #2d2a6e;
+  color: #e0e7ff;
+}
+
+/* Flashcards */
+
 .cards-section {
+  width: 100%;
   margin-top: 40px;
   animation: popout 0.4s ease forwards;
 }
@@ -217,13 +530,14 @@ p {
 .card-counter {
   text-align: center;
   margin-bottom: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: #e0e7ff;
 }
 
 .card {
+  width: 100%;
   perspective: 1000px;
-  height: 240px;
+  height: 210px;
   cursor: pointer;
   margin-bottom: 24px;
 }
@@ -251,8 +565,9 @@ p {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
   text-align: center;
+  padding: 24px;
+  overflow: hidden;
 }
 
 .card-front {
@@ -265,19 +580,26 @@ p {
   transform: rotateY(180deg);
 }
 
-.card-front p {
+.card-front p,
+.card-back p {
+  width: 100%;
+  max-height: calc(100% - 28px);
+  overflow-y: auto;
   font-size: 18px;
-  font-weight: 600;
-  color: #e0e7ff;
+  line-height: 1.5;
   margin: 0;
   text-align: center;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.card-front p {
+  font-weight: 700;
+  color: #e0e7ff;
 }
 
 .card-back p {
-  font-size: 18px;
   color: white;
-  margin: 0;
-  text-align: center;
 }
 
 .hint {
@@ -290,7 +612,10 @@ p {
   color: #6b7280;
 }
 
+/* Card navigation */
+
 .nav-buttons {
+  width: 100%;
   display: flex;
   gap: 12px;
   justify-content: center;
@@ -298,6 +623,7 @@ p {
 }
 
 .nav-btn {
+  flex: 1;
   background: #1e1b4b;
   color: #a5b4fc;
   border: 2px solid #3730a3 !important;
@@ -338,6 +664,8 @@ p {
   color: #e0e7ff;
 }
 
+/* Quiz overlay */
+
 .quiz-overlay {
   position: fixed;
   top: 0;
@@ -371,14 +699,14 @@ p {
 
 .quiz-counter {
   color: #a5b4fc;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
   text-align: left;
 }
 
 .quiz-score {
   color: #a5b4fc;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -398,7 +726,7 @@ p {
 
 .quiz-question {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   color: #e0e7ff;
   margin-bottom: 24px;
   text-align: left;
@@ -434,7 +762,7 @@ p {
   color: white;
   padding: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.2s;
@@ -457,10 +785,20 @@ p {
   margin-bottom: 16px;
 }
 
+.ai-feedback.ai-correct {
+  border-color: #10b981 !important;
+  background: #052e24;
+}
+
+.ai-feedback.ai-wrong {
+  border-color: #ef4444 !important;
+  background: #450a0a;
+}
+
 .ai-feedback-label {
   color: #818cf8;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 8px;
   text-align: left;
 }
@@ -483,7 +821,7 @@ p {
 .quiz-answer-label {
   color: #818cf8;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 8px;
   text-align: left;
 }
@@ -507,13 +845,47 @@ p {
   color: #a5b4fc;
 }
 
+.quiz-feedback-btns {
+  display: flex;
+  gap: 12px;
+}
+
+.quiz-correct-btn,
+.quiz-wrong-btn {
+  flex: 1;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quiz-correct-btn {
+  background: #065f46;
+  color: white;
+}
+
+.quiz-correct-btn:hover {
+  background: #047857;
+}
+
+.quiz-wrong-btn {
+  background: #7f1d1d;
+  color: white;
+}
+
+.quiz-wrong-btn:hover {
+  background: #991b1b;
+}
+
 .quiz-next-btn {
   width: 100%;
   background: #6d28d9;
   color: white;
   padding: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.2s;
@@ -523,303 +895,289 @@ p {
   background: #7c3aed;
 }
 
-.login-box {
-  max-width: 400px;
-  margin: 100px auto;
-  text-align: center;
-}
+/* Mobile */
 
-.pin-input {
-  width: 100%;
-  padding: 14px 16px;
-  font-size: 18px;
-  border: 2px solid #3730a3 !important;
-  border-radius: 12px;
-  background: #1e1b4b;
-  color: #e0e7ff;
-  outline: none !important;
-  text-align: center;
-  letter-spacing: 1.5px;
-  margin-bottom: 16px;
-}
-
-.pin-input:focus {
-  border: 2px solid #818cf8 !important;
-}
-
-.pin-input::placeholder {
-  letter-spacing: normal;
-  color: #6b7280;
-}
-
-.login-error {
-  color: #fca5a5;
-  background: #450a0a;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-size: 14px;
-}
-
-.create-btn {
-  width: 100%;
-  background: transparent;
-  color: #a5b4fc;
-  border: 2px solid #3730a3 !important;
-  padding: 14px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-top: 12px;
-}
-
-.create-btn:hover {
-  background: #1e1b4b;
-  color: #e0e7ff;
-}
-
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.top-bar h1 {
-  margin: 0;
-  text-align: center;
-}
-
-.logout-btn {
-  background: transparent;
-  color: #6b7280;
-  border: 2px solid #3730a3 !important;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.logout-btn:hover {
-  color: #e0e7ff;
-  background: #1e1b4b;
-}
-
-.saved-decks {
-  margin-bottom: 16px;
-}
-
-.saved-label {
-  color: #818cf8;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  margin-bottom: 8px;
-}
-
-.deck-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.deck-btn {
-  background: #1e1b4b;
-  color: #a5b4fc;
-  border: 2px solid #3730a3 !important;
-  padding: 10px 16px;
-  font-size: 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s;
-}
-
-.deck-btn:hover {
-  background: #2d2a6e;
-  color: #e0e7ff;
-}
-
-/* Final layout fixes */
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.top-buttons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.top-bar h1 {
-  margin: 0;
-  text-align: left;
-}
-
-.logout-btn {
-  padding: 6px 12px;
-}
-
-.delete-account-btn {
-  background: transparent;
-  color: #ef4444;
-  border: 2px solid #7f1d1d !important;
-  padding: 6px 12px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.delete-account-btn:hover {
-  background: #450a0a;
-  color: white;
-}
-
-/* Smaller flashcards that do not cut off long text */
-.card {
-  height: 210px;
-}
-
-.card-front,
-.card-back {
-  justify-content: flex-start;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.card-front p,
-.card-back p {
-  max-width: 100%;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  line-height: 1.5;
-}
-
-/* Make sure no horizontal scrolling is added */
-.cards-section {
-  width: 100%;
-  min-width: 0;
-}
-
-@media (max-width: 600px) {
-  .top-bar {
-    flex-direction: column;
-    align-items: center;
+@media (max-width: 768px) {
+  .container {
+    width: 100%;
+    margin: 32px auto;
+    padding: 0 16px;
   }
 
-  .top-bar h1 {
-    text-align: center;
-    font-size: 30px;
+  h1,
+  .top-bar h1,
+  .login-box h1 {
+    font-size: 32px;
+  }
+
+  .top-bar {
+    flex-direction: column;
+    gap: 8px;
   }
 
   .top-buttons {
     justify-content: center;
   }
 
+  .deck-version-controls,
+  .deck-actions {
+    flex-wrap: wrap;
+  }
+
+  .deck-version-select {
+    width: 100%;
+  }
+
+  .load-deck-btn,
+  .delete-deck-btn {
+    flex: 1;
+  }
+
   .card {
     height: 220px;
   }
-}
 
-/* Old 1126px layout sizing from the CSS you sent */
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px,
-    rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  .nav-buttons {
+    flex-direction: column;
+  }
 
-@media (max-width: 1024px) {
-  :root {
-    font-size: 16px;
+  .quiz-feedback-btns {
+    flex-direction: column;
   }
 }
 
-#root {
-  width: 1126px !important;
-  max-width: 100% !important;
-  margin: 0 auto !important;
+.delete-deck-btn,
+.deck-delete-btn,
+.delete-saved-deck-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 2px solid #7f1d1d !important;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-deck-btn:hover,
+.deck-delete-btn:hover,
+.delete-saved-deck-btn:hover {
+  background: #450a0a;
+  color: white;
+  transform: translateY(-1px);
+}
+
+.delete-deck-btn:active,
+.deck-delete-btn:active,
+.delete-saved-deck-btn:active {
+  transform: scale(0.97);
+}
+
+/* Remove arrow selector from flashcard number input */
+.card-count input[type="number"]::-webkit-outer-spin-button,
+.card-count input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.card-count input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.active-deck-name {
   text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  color: #818cf8;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.quiz-finished {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.quiz-finished-emoji {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.quiz-finished-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #e0e7ff;
+  margin-bottom: 12px;
+}
+
+.quiz-finished-score {
+  color: #a5b4fc;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.quiz-finished-score strong {
+  color: #e0e7ff;
+}
+
+.quiz-finished-pct {
+  font-size: 48px;
+  font-weight: 700;
+  color: #6d28d9;
+  margin-bottom: 24px;
+}
+
+.delete-account-btn {
+  background: transparent;
+  color: #fca5a5;
+  border: 2px solid #450a0a !important;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.delete-account-btn:hover {
+  background: #450a0a;
+  color: #fca5a5;
+}
+
+.deck-version-select {
+  background: #0d0221;
+  color: #a5b4fc;
+  border: 2px solid #3730a3 !important;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none !important;
+  cursor: pointer;
+}
+
+.deck-group {
+  background: #1e1b4b;
+  border: 2px solid #3730a3 !important;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.deck-title {
+  color: #e0e7ff;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.deck-version-controls {
   display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+  gap: 8px;
+  align-items: center;
 }
 
-.container {
-  width: 1126px !important;
-  max-width: 100% !important;
-  margin: 60px auto !important;
-  padding: 0 24px;
-  box-sizing: border-box;
+.deck-btn {
+  background: #3730a3;
+  color: #e0e7ff;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.cards-section {
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  margin: 40px auto 0 !important;
+.deck-btn:hover {
+  background: #4f46e5;
 }
 
-.card {
-  width: 100% !important;
-  height: 210px;
+.deck-delete-btn {
+  background: transparent;
+  color: #fca5a5;
+  border: 2px solid #450a0a !important;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.nav-buttons {
-  width: 100% !important;
+.deck-delete-btn:hover {
+  background: #450a0a;
 }
 
-.nav-btn {
-  flex: 1;
+/* Apply smooth animation to all buttons */
+button {
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.quiz-btn {
-  width: 100% !important;
+button:hover {
+  transform: translateY(-1px);
 }
 
-html,
-body,
-#root,
-.container {
-  border-left: none !important;
-  border-right: none !important;
-  border-inline: none !important;
+button:active {
+  transform: scale(0.97);
 }
 
-html,
-body {
-  background: linear-gradient(-45deg, var(--c1), var(--c2), var(--c3), var(--c4));
-  background-size: 300% 300%;
+/* Consistent delete button style for account + saved decks */
+.delete-account-btn,
+.delete-deck-btn,
+.deck-delete-btn,
+.delete-saved-deck-btn {
+  background: transparent;
+  color: #fca5a5;
+  border: 2px solid #450a0a !important;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.delete-account-btn:hover,
+.delete-deck-btn:hover,
+.deck-delete-btn:hover,
+.delete-saved-deck-btn:hover {
+  background: #450a0a;
+  color: #fca5a5;
+  transform: translateY(-1px);
+}
+
+.delete-account-btn:active,
+.delete-deck-btn:active,
+.deck-delete-btn:active,
+.delete-saved-deck-btn:active {
+  transform: scale(0.97);
+}
+
+/* Make only the saved deck delete button smaller */
+.delete-deck-btn {
+  padding: 5px 8px;
+  font-size: 12px;
+  min-height: 30px;
+  border-radius: 6px;
+  margin-left: 0;
+}
+
+/* Force saved deck Delete button to be smaller */
+.deck-group .delete-deck-btn,
+.deck-version-controls .delete-deck-btn,
+.deck-actions .delete-deck-btn,
+button.delete-deck-btn {
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  min-height: 28px !important;
+  height: 30px !important;
+  line-height: 1 !important;
+  border-radius: 6px !important;
+  margin-left: 0 !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
 }

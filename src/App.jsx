@@ -9,6 +9,7 @@ function App() {
   const [pin, setPin] = useState("")
   const [loggedIn, setLoggedIn] = useState(false)
   const [loginError, setLoginError] = useState("")
+  const [loginLoading, setLoginLoading] = useState(false)
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
@@ -23,13 +24,17 @@ function App() {
   const [quizIndex, setQuizIndex] = useState(0)
   const [quizResult, setQuizResult] = useState(null)
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 })
+  const [quizFinished, setQuizFinished] = useState(false)
   const [shuffledCards, setShuffledCards] = useState([])
   const [savedDecks, setSavedDecks] = useState([])
+  const [selectedDeckIds, setSelectedDeckIds] = useState({})
+  const [activeDeckName, setActiveDeckName] = useState("")
   const engineRef = useRef(null)
 
   async function handleLogin() {
     if (!pin.trim()) return
     setLoginError("")
+    setLoginLoading(true)
 
     const { data } = await supabase
       .from("users")
@@ -43,11 +48,14 @@ function App() {
     } else {
       setLoginError("PIN not found. Would you like to create an account?")
     }
+
+    setLoginLoading(false)
   }
 
   async function handleCreateAccount() {
     if (!pin.trim()) return
     setLoginError("")
+    setLoginLoading(true)
 
     const { error } = await supabase
       .from("users")
@@ -59,6 +67,8 @@ function App() {
       setLoggedIn(true)
       setSavedDecks([])
     }
+
+    setLoginLoading(false)
   }
 
   async function loadSavedDecks(userPin) {
@@ -78,8 +88,7 @@ function App() {
       messages: [
         {
           role: "system",
-          content:
-            "You create short flashcard deck titles. Return ONLY a short title, 2-5 words. Do not use quotes. Do not add extra text."
+          content: "You create short flashcard deck titles. Return ONLY a short title, 2-5 words. Do not use quotes. Do not add extra text."
         },
         {
           role: "user",
@@ -91,43 +100,92 @@ function App() {
     })
 
     let title = reply.choices[0].message.content.trim()
-
-    title = title
-      .replace(/^["']|["']$/g, "")
-      .replace(/^title:\s*/i, "")
-      .trim()
-
+    title = title.replace(/^["']|["']$/g, "").replace(/^title:\s*/i, "").trim()
     if (!title) title = "Untitled Deck"
-
     return title
   }
 
-  async function saveDeck(notesText, generatedCards) {
-    const notesHash = btoa(encodeURIComponent(notesText)).slice(0, 50)
+  function makeNotesHash(notesText) {
+    return btoa(encodeURIComponent(notesText)).slice(0, 50)
+  }
+
+  function getDeckCount(deck) {
+    return deck.card_count || deck.cards?.length || 0
+  }
+
+  function loadDeck(deck) {
+    setNotes(deck.notes)
+    setCards(deck.cards)
+    setCardCount(String(getDeckCount(deck) || 8))
+    setCurrentIndex(0)
+    setFlipped(false)
+    setActiveDeckName(deck.name || "Untitled Deck")
+  }
+
+  function getGroupedSavedDecks() {
+    const groups = {}
+
+    for (const deck of savedDecks) {
+      const key = deck.notes_hash || makeNotesHash(deck.notes || "")
+
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          name: deck.name || "Untitled Deck",
+          notes: deck.notes,
+          decks: []
+        }
+      }
+
+      groups[key].decks.push(deck)
+    }
+
+    return Object.values(groups).map((group) => ({
+      ...group,
+      decks: group.decks.sort((a, b) => getDeckCount(a) - getDeckCount(b))
+    }))
+  }
+
+  async function saveDeck(notesText, generatedCards, count) {
+    const notesHash = makeNotesHash(notesText)
     const name = await generateDeckTitle(notesText)
 
-    await supabase
+    const { error } = await supabase
       .from("decks")
       .insert([{
         user_pin: pin,
         notes_hash: notesHash,
         notes: notesText,
         name,
-        cards: generatedCards
+        cards: generatedCards,
+        card_count: count
       }])
 
+    if (error) {
+      console.error("Save deck error:", error)
+      setError("Could not save deck: " + error.message)
+      return
+    }
+
+    setActiveDeckName(name)
     loadSavedDecks(pin)
   }
 
-  async function checkExistingDeck(notesText) {
-    const notesHash = btoa(encodeURIComponent(notesText)).slice(0, 50)
+  async function checkExistingDeck(notesText, count) {
+    const notesHash = makeNotesHash(notesText)
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("decks")
       .select("*")
       .eq("user_pin", pin)
       .eq("notes_hash", notesHash)
-      .single()
+      .eq("card_count", count)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Check existing deck error:", error)
+      return null
+    }
 
     return data
   }
@@ -145,24 +203,27 @@ function App() {
   }
 
   async function generateFlashcards() {
-    if (!notes.trim()) return
+    if (!notes.trim()) {
+      setError("Please paste some notes first!")
+      return
+    }
     setLoading(true)
     setError("")
     setCards([])
+    setActiveDeckName("")
     setSlowLoad(false)
 
-    const existing = await checkExistingDeck(notes)
+    const needed = parseInt(cardCount) || 8
+    const existing = await checkExistingDeck(notes, needed)
+
     if (existing) {
-      setCards(existing.cards)
-      setCurrentIndex(0)
-      setFlipped(false)
+      loadDeck(existing)
       setLoading(false)
       return
     }
 
     setLoadingMessage("Loading AI model...")
     const slowTimer = setTimeout(() => setSlowLoad(true), 30000)
-    const needed = parseInt(cardCount) || 8
 
     function parseCards(raw) {
       const questions = [...raw.matchAll(/"question"\s*:\s*"([^"]+)"/g)].map(m => m[1])
@@ -212,7 +273,7 @@ function App() {
       setCards(finalCards)
       setCurrentIndex(0)
       setFlipped(false)
-      await saveDeck(notes, finalCards)
+      await saveDeck(notes, finalCards, needed)
 
     } catch (err) {
       setError("Something went wrong: " + err.message)
@@ -232,28 +293,63 @@ function App() {
     if (!confirmed) return
 
     try {
-      await supabase
-        .from("decks")
-        .delete()
-        .eq("user_pin", pin)
-
-      await supabase
-        .from("users")
-        .delete()
-        .eq("pin", pin)
+      await supabase.from("decks").delete().eq("user_pin", pin)
+      await supabase.from("users").delete().eq("pin", pin)
 
       setLoggedIn(false)
       setPin("")
       setNotes("")
       setCards([])
       setSavedDecks([])
+      setSelectedDeckIds({})
       setCurrentIndex(0)
       setFlipped(false)
+      setActiveDeckName("")
 
       alert("Account deleted successfully.")
     } catch (err) {
       alert("Failed to delete account.")
       console.error(err)
+    }
+  }
+
+  async function deleteSavedDeck(deck) {
+    const confirmed = window.confirm(
+      `Delete saved deck "${deck.name || "Untitled Deck"}"?`
+    )
+
+    if (!confirmed) return
+
+    const { error } = await supabase
+      .from("decks")
+      .delete()
+      .eq("id", deck.id)
+      .eq("user_pin", pin)
+
+    if (error) {
+      console.error("Delete saved deck error:", error)
+      setError("Could not delete saved deck: " + error.message)
+      return
+    }
+
+    setSavedDecks((decks) => decks.filter((d) => d.id !== deck.id))
+    setSelectedDeckIds((current) => {
+      const next = { ...current }
+      for (const key of Object.keys(next)) {
+        if (String(next[key]) === String(deck.id)) delete next[key]
+      }
+      return next
+    })
+
+    const deletedCurrentDeck =
+      notes === deck.notes && JSON.stringify(cards) === JSON.stringify(deck.cards)
+
+    if (deletedCurrentDeck) {
+      setCards([])
+      setNotes("")
+      setCurrentIndex(0)
+      setFlipped(false)
+      setActiveDeckName("")
     }
   }
 
@@ -271,6 +367,7 @@ function App() {
     const shuffled = [...cards].sort(() => Math.random() - 0.5)
     setShuffledCards(shuffled)
     setQuizMode(true)
+    setQuizFinished(false)
     setQuizIndex(0)
     setUserAnswer("")
     setQuizResult(null)
@@ -278,15 +375,18 @@ function App() {
   }
 
   function nextQuizCard(correct) {
-    if (correct) {
-      setQuizScore(s => ({ ...s, correct: s.correct + 1 }))
+    const newScore = {
+      correct: correct ? quizScore.correct + 1 : quizScore.correct,
+      total: quizScore.total
     }
+    setQuizScore(newScore)
+
     if (quizIndex + 1 < shuffledCards.length) {
       setQuizIndex(i => i + 1)
       setUserAnswer("")
       setQuizResult(null)
     } else {
-      setQuizMode(false)
+      setQuizFinished(true)
     }
   }
 
@@ -305,16 +405,17 @@ function App() {
             placeholder="Enter your PIN..."
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           />
 
           {loginError && <p className="login-error">{loginError}</p>}
 
-          <button className="generate-btn" onClick={handleLogin}>
-            Login
+          <button className="generate-btn" onClick={handleLogin} disabled={loginLoading}>
+            {loginLoading ? "Logging in..." : "Login"}
           </button>
 
-          <button className="create-btn" onClick={handleCreateAccount}>
-            Create Account
+          <button className="create-btn" onClick={handleCreateAccount} disabled={loginLoading}>
+            {loginLoading ? "Creating..." : "Create Account"}
           </button>
         </div>
       </div>
@@ -325,7 +426,6 @@ function App() {
     <div className="container">
       <div className="top-bar">
         <h1>Flashcard Generator</h1>
-
         <div className="top-buttons">
           <button
             className="logout-btn"
@@ -335,36 +435,61 @@ function App() {
               setCards([])
               setNotes("")
               setSavedDecks([])
+              setSelectedDeckIds({})
+              setActiveDeckName("")
             }}
           >
             Logout
           </button>
-
           <button className="delete-account-btn" onClick={deleteAccount}>
-            Delete
+            Delete Account
           </button>
         </div>
       </div>
+
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
       {savedDecks.length > 0 && (
         <div className="saved-decks">
           <p className="saved-label">Your saved decks:</p>
           <div className="deck-list">
-            {savedDecks.map((deck) => (
-              <button
-                key={deck.id}
-                className="deck-btn"
-                onClick={() => {
-                  setNotes(deck.notes)
-                  setCards(deck.cards)
-                  setCurrentIndex(0)
-                  setFlipped(false)
-                }}
-              >
-                {deck.name || "Untitled Deck"}
-              </button>
-            ))}
+            {getGroupedSavedDecks().map((group) => {
+              const selectedId = selectedDeckIds[group.key] || String(group.decks[0].id)
+              const selectedDeck = group.decks.find((deck) => String(deck.id) === String(selectedId)) || group.decks[0]
+
+              return (
+                <div className="deck-group" key={group.key}>
+                  <p className="deck-title">{group.name}</p>
+                  <div className="deck-version-controls">
+                    <select
+                      className="deck-version-select"
+                      value={String(selectedDeck.id)}
+                      onChange={(e) => {
+                        setSelectedDeckIds((current) => ({
+                          ...current,
+                          [group.key]: e.target.value
+                        }))
+                      }}
+                    >
+                      {group.decks.map((deck) => (
+                        <option key={deck.id} value={String(deck.id)}>
+                          {getDeckCount(deck)} flashcards
+                        </option>
+                      ))}
+                    </select>
+                    <button className="deck-btn" onClick={() => loadDeck(selectedDeck)}>
+                      Load
+                    </button>
+                    <button
+                      className="deck-delete-btn"
+                      onClick={() => deleteSavedDeck(selectedDeck)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -396,7 +521,7 @@ function App() {
         <div>
           <p className="loading-msg">{loadingMessage}</p>
           {slowLoad && (
-            <p className="slow-load">⏳ Taking longer than expected... the model is still downloading, hang tight!</p>
+            <p className="slow-load">⏳ Taking longer than expected... hang tight!</p>
           )}
         </div>
       )}
@@ -407,6 +532,9 @@ function App() {
 
       {cards.length > 0 && (
         <div className="cards-section">
+          {activeDeckName && (
+            <p className="active-deck-name">📚 {activeDeckName}</p>
+          )}
           <p className="card-counter">{currentIndex + 1} / {cards.length}</p>
 
           <div className={`card ${flipped ? "flipped" : ""}`} onClick={() => setFlipped(!flipped)}>
@@ -440,48 +568,74 @@ function App() {
       {quizMode && (
         <div className="quiz-overlay">
           <div className="quiz-box">
-            <div className="quiz-header">
-              <p className="quiz-counter">{quizIndex + 1} / {shuffledCards.length}</p>
-              <p className="quiz-score">✅ {quizScore.correct} / {quizScore.total}</p>
-              <button className="quiz-close" onClick={() => setQuizMode(false)}>✕</button>
-            </div>
-
-            <p className="quiz-question">{shuffledCards[quizIndex]?.question}</p>
-
-            {quizResult === null ? (
-              <>
-                <textarea
-                  className="quiz-input"
-                  placeholder="Type your answer..."
-                  value={userAnswer}
-                  onChange={(e) => setUserAnswer(e.target.value)}
-                />
-                <button
-                  className="quiz-check-btn"
-                  onClick={() => {
-                    if (!userAnswer.trim()) return
-                    setQuizResult(shuffledCards[quizIndex].answer)
-                    setQuizScore(s => ({ ...s, total: s.total + 1 }))
-                  }}
-                >
-                  Check Answer
-                </button>
-              </>
+            {quizFinished ? (
+              <div className="quiz-finished">
+                <p className="quiz-finished-emoji">
+                  {quizScore.correct === shuffledCards.length ? "🎉" :
+                   quizScore.correct >= shuffledCards.length / 2 ? "👍" : "📖"}
+                </p>
+                <p className="quiz-finished-title">Quiz Complete!</p>
+                <p className="quiz-finished-score">
+                  You got <strong>{quizScore.correct}</strong> out of <strong>{shuffledCards.length}</strong> correct
+                </p>
+                <p className="quiz-finished-pct">
+                  {Math.round((quizScore.correct / shuffledCards.length) * 100)}%
+                </p>
+                <div className="quiz-feedback-btns">
+                  <button className="quiz-correct-btn" onClick={startQuiz}>
+                    Try Again
+                  </button>
+                  <button className="quiz-wrong-btn" onClick={() => setQuizMode(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
-                <div className="quiz-answer">
-                  <p className="quiz-answer-label">Correct Answer:</p>
-                  <p>{quizResult}</p>
+                <div className="quiz-header">
+                  <p className="quiz-counter">{quizIndex + 1} / {shuffledCards.length}</p>
+                  <p className="quiz-score">✅ {quizScore.correct} / {quizScore.total}</p>
+                  <button className="quiz-close" onClick={() => setQuizMode(false)}>✕</button>
                 </div>
-                <p className="quiz-your-answer-label">Your Answer: <span>{userAnswer}</span></p>
-                <div className="quiz-feedback-btns">
-                  <button className="quiz-correct-btn" onClick={() => nextQuizCard(true)}>
-                    ✅ Got it
-                  </button>
-                  <button className="quiz-wrong-btn" onClick={() => nextQuizCard(false)}>
-                    ❌ Missed it
-                  </button>
-                </div>
+
+                <p className="quiz-question">{shuffledCards[quizIndex]?.question}</p>
+
+                {quizResult === null ? (
+                  <>
+                    <textarea
+                      className="quiz-input"
+                      placeholder="Type your answer..."
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                    />
+                    <button
+                      className="quiz-check-btn"
+                      onClick={() => {
+                        if (!userAnswer.trim()) return
+                        setQuizResult(shuffledCards[quizIndex].answer)
+                        setQuizScore(s => ({ ...s, total: s.total + 1 }))
+                      }}
+                    >
+                      Check Answer
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="quiz-answer">
+                      <p className="quiz-answer-label">Correct Answer:</p>
+                      <p>{quizResult}</p>
+                    </div>
+                    <p className="quiz-your-answer-label">Your Answer: <span>{userAnswer}</span></p>
+                    <div className="quiz-feedback-btns">
+                      <button className="quiz-correct-btn" onClick={() => nextQuizCard(true)}>
+                        ✅ Got it
+                      </button>
+                      <button className="quiz-wrong-btn" onClick={() => nextQuizCard(false)}>
+                        ❌ Missed it
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
