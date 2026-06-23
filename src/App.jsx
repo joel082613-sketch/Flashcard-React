@@ -29,10 +29,108 @@ function App() {
   const [savedDecks, setSavedDecks] = useState([])
   const [selectedDeckIds, setSelectedDeckIds] = useState({})
   const [activeDeckName, setActiveDeckName] = useState("")
+  const [aiFeedback, setAiFeedback] = useState("")
+  const [aiCorrect, setAiCorrect] = useState(null)
+  const [checkingAnswer, setCheckingAnswer] = useState(false)
+
   const engineRef = useRef(null)
+
+  async function getEngine() {
+    if (engineRef.current) return engineRef.current
+
+    const engine = await webllm.CreateMLCEngine(MODEL, {
+      initProgressCallback: (progress) => {
+        const pct = Math.round(progress.progress * 100)
+        setLoadingMessage(`Downloading model... ${pct}%`)
+      }
+    })
+
+    engineRef.current = engine
+    return engine
+  }
+
+  async function checkAnswerWithAI() {
+    if (!userAnswer.trim()) return
+
+    setCheckingAnswer(true)
+    setAiFeedback("")
+    setAiCorrect(null)
+
+    try {
+      const engine = await getEngine()
+      const currentCard = shuffledCards[quizIndex]
+
+      const reply = await engine.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are a strict but helpful flashcard quiz grader.
+
+Return ONLY valid JSON in this exact format:
+{
+  "correct": true,
+  "feedback": "short helpful feedback"
+}
+
+Rules:
+- If the student's answer is mostly correct, use true.
+- If it is wrong, too incomplete, or missing the main idea, use false.
+- Keep feedback 1-2 sentences.
+- Do not add anything outside the JSON.`
+          },
+          {
+            role: "user",
+            content: `Question: ${currentCard.question}
+
+Correct answer: ${currentCard.answer}
+
+Student answer: ${userAnswer}
+
+Grade the student answer.`
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 250
+      })
+
+      let text = reply.choices[0].message.content.trim()
+      text = text.replace(/```json/g, "").replace(/```/g, "").trim()
+
+      let result
+
+      try {
+        result = JSON.parse(text)
+      } catch {
+        result = {
+          correct: false,
+          feedback:
+            "The AI could not grade this clearly. Compare your answer with the correct answer below."
+        }
+      }
+
+      const isCorrect = result.correct === true
+
+      setAiCorrect(isCorrect)
+      setAiFeedback(result.feedback || "No feedback given.")
+      setQuizResult(currentCard.answer)
+
+      setQuizScore((score) => ({
+        correct: score.correct + (isCorrect ? 1 : 0),
+        total: score.total + 1
+      }))
+    } catch (err) {
+      console.error(err)
+      setAiCorrect(false)
+      setAiFeedback("Something went wrong while checking your answer.")
+      setQuizResult(shuffledCards[quizIndex]?.answer || "")
+    }
+
+    setCheckingAnswer(false)
+  }
 
   async function handleLogin() {
     if (!pin.trim()) return
+
     setLoginError("")
     setLoginLoading(true)
 
@@ -54,6 +152,7 @@ function App() {
 
   async function handleCreateAccount() {
     if (!pin.trim()) return
+
     setLoginError("")
     setLoginLoading(true)
 
@@ -88,7 +187,8 @@ function App() {
       messages: [
         {
           role: "system",
-          content: "You create short flashcard deck titles. Return ONLY a short title, 2-5 words. Do not use quotes. Do not add extra text."
+          content:
+            "You create short flashcard deck titles. Return ONLY a short title, 2-5 words. Do not use quotes. Do not add extra text."
         },
         {
           role: "user",
@@ -101,7 +201,9 @@ function App() {
 
     let title = reply.choices[0].message.content.trim()
     title = title.replace(/^["']|["']$/g, "").replace(/^title:\s*/i, "").trim()
+
     if (!title) title = "Untitled Deck"
+
     return title
   }
 
@@ -152,14 +254,16 @@ function App() {
 
     const { error } = await supabase
       .from("decks")
-      .insert([{
-        user_pin: pin,
-        notes_hash: notesHash,
-        notes: notesText,
-        name,
-        cards: generatedCards,
-        card_count: count
-      }])
+      .insert([
+        {
+          user_pin: pin,
+          notes_hash: notesHash,
+          notes: notesText,
+          name,
+          cards: generatedCards,
+          card_count: count
+        }
+      ])
 
     if (error) {
       console.error("Save deck error:", error)
@@ -190,23 +294,12 @@ function App() {
     return data
   }
 
-  async function getEngine() {
-    if (engineRef.current) return engineRef.current
-    const engine = await webllm.CreateMLCEngine(MODEL, {
-      initProgressCallback: (progress) => {
-        const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading model... ${pct}%`)
-      }
-    })
-    engineRef.current = engine
-    return engine
-  }
-
   async function generateFlashcards() {
     if (!notes.trim()) {
       setError("Please paste some notes first!")
       return
     }
+
     setLoading(true)
     setError("")
     setCards([])
@@ -226,12 +319,22 @@ function App() {
     const slowTimer = setTimeout(() => setSlowLoad(true), 30000)
 
     function parseCards(raw) {
-      const questions = [...raw.matchAll(/"question"\s*:\s*"([^"]+)"/g)].map(m => m[1])
-      const answers = [...raw.matchAll(/"answer"\s*:\s*"([^"]+)"/g)].map(m => m[1])
+      const questions = [...raw.matchAll(/"question"\s*:\s*"([^"]+)"/g)].map(
+        (m) => m[1]
+      )
+      const answers = [...raw.matchAll(/"answer"\s*:\s*"([^"]+)"/g)].map(
+        (m) => m[1]
+      )
+
       const result = []
+
       for (let i = 0; i < Math.min(questions.length, answers.length); i++) {
-        result.push({ question: questions[i], answer: answers[i] })
+        result.push({
+          question: questions[i],
+          answer: answers[i]
+        })
       }
+
       return result
     }
 
@@ -242,6 +345,7 @@ function App() {
 
       while (allCards.length < needed && attempts < 3) {
         const remaining = needed - allCards.length
+
         setLoadingMessage(`Generating flashcards... (${allCards.length}/${needed})`)
 
         const reply = await engine.chat.completions.create({
@@ -249,9 +353,9 @@ function App() {
             {
               role: "system",
               content: `You are a flashcard generator. Return ONLY a JSON array with no extra text.
-              Each item must have a "question" and "answer" field.
-              Make answers detailed and thorough, at least 2-3 sentences each.
-              Example: [{"question": "What is X?", "answer": "X is... It works by... This is important because..."}]`
+Each item must have a "question" and "answer" field.
+Make answers detailed and thorough, at least 2-3 sentences each.
+Example: [{"question": "What is X?", "answer": "X is... It works by... This is important because..."}]`
             },
             {
               role: "user",
@@ -264,17 +368,22 @@ function App() {
 
         const text = reply.choices[0].message.content
         const newCards = parseCards(text)
+
         allCards = [...allCards, ...newCards]
         attempts++
       }
 
       const finalCards = allCards.slice(0, needed)
-      if (finalCards.length === 0) throw new Error("Could not generate flashcards")
+
+      if (finalCards.length === 0) {
+        throw new Error("Could not generate flashcards")
+      }
+
       setCards(finalCards)
       setCurrentIndex(0)
       setFlipped(false)
-      await saveDeck(notes, finalCards, needed)
 
+      await saveDeck(notes, finalCards, needed)
     } catch (err) {
       setError("Something went wrong: " + err.message)
     }
@@ -333,11 +442,16 @@ function App() {
     }
 
     setSavedDecks((decks) => decks.filter((d) => d.id !== deck.id))
+
     setSelectedDeckIds((current) => {
       const next = { ...current }
+
       for (const key of Object.keys(next)) {
-        if (String(next[key]) === String(deck.id)) delete next[key]
+        if (String(next[key]) === String(deck.id)) {
+          delete next[key]
+        }
       }
+
       return next
     })
 
@@ -365,26 +479,28 @@ function App() {
 
   function startQuiz() {
     const shuffled = [...cards].sort(() => Math.random() - 0.5)
+
     setShuffledCards(shuffled)
     setQuizMode(true)
     setQuizFinished(false)
     setQuizIndex(0)
     setUserAnswer("")
     setQuizResult(null)
+    setAiFeedback("")
+    setAiCorrect(null)
+    setCheckingAnswer(false)
     setQuizScore({ correct: 0, total: 0 })
   }
 
-  function nextQuizCard(correct) {
-    const newScore = {
-      correct: correct ? quizScore.correct + 1 : quizScore.correct,
-      total: quizScore.total
-    }
-    setQuizScore(newScore)
+  function nextQuizCard() {
+    setUserAnswer("")
+    setQuizResult(null)
+    setAiFeedback("")
+    setAiCorrect(null)
+    setCheckingAnswer(false)
 
     if (quizIndex + 1 < shuffledCards.length) {
-      setQuizIndex(i => i + 1)
-      setUserAnswer("")
-      setQuizResult(null)
+      setQuizIndex((i) => i + 1)
     } else {
       setQuizFinished(true)
     }
@@ -410,11 +526,19 @@ function App() {
 
           {loginError && <p className="login-error">{loginError}</p>}
 
-          <button className="generate-btn" onClick={handleLogin} disabled={loginLoading}>
+          <button
+            className="generate-btn"
+            onClick={handleLogin}
+            disabled={loginLoading}
+          >
             {loginLoading ? "Logging in..." : "Login"}
           </button>
 
-          <button className="create-btn" onClick={handleCreateAccount} disabled={loginLoading}>
+          <button
+            className="create-btn"
+            onClick={handleCreateAccount}
+            disabled={loginLoading}
+          >
             {loginLoading ? "Creating..." : "Create Account"}
           </button>
         </div>
@@ -426,6 +550,7 @@ function App() {
     <div className="container">
       <div className="top-bar">
         <h1>Flashcard Generator</h1>
+
         <div className="top-buttons">
           <button
             className="logout-btn"
@@ -441,6 +566,7 @@ function App() {
           >
             Logout
           </button>
+
           <button className="delete-account-btn" onClick={deleteAccount}>
             Delete Account
           </button>
@@ -452,14 +578,20 @@ function App() {
       {savedDecks.length > 0 && (
         <div className="saved-decks">
           <p className="saved-label">Your saved decks:</p>
+
           <div className="deck-list">
             {getGroupedSavedDecks().map((group) => {
-              const selectedId = selectedDeckIds[group.key] || String(group.decks[0].id)
-              const selectedDeck = group.decks.find((deck) => String(deck.id) === String(selectedId)) || group.decks[0]
+              const selectedId =
+                selectedDeckIds[group.key] || String(group.decks[0].id)
+
+              const selectedDeck =
+                group.decks.find((deck) => String(deck.id) === String(selectedId)) ||
+                group.decks[0]
 
               return (
                 <div className="deck-group" key={group.key}>
                   <p className="deck-title">{group.name}</p>
+
                   <div className="deck-version-controls">
                     <select
                       className="deck-version-select"
@@ -477,9 +609,14 @@ function App() {
                         </option>
                       ))}
                     </select>
-                    <button className="deck-btn" onClick={() => loadDeck(selectedDeck)}>
+
+                    <button
+                      className="deck-btn"
+                      onClick={() => loadDeck(selectedDeck)}
+                    >
                       Load
                     </button>
+
                     <button
                       className="deck-delete-btn"
                       onClick={() => deleteSavedDeck(selectedDeck)}
@@ -503,12 +640,13 @@ function App() {
 
       <div className="card-count">
         <label>Number of flashcards</label>
+
         <input
-          type="number"
-          min="1"
-          max="20"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={cardCount}
-          onChange={(e) => setCardCount(e.target.value)}
+          onChange={(e) => setCardCount(e.target.value.replace(/\D/g, ""))}
           onBlur={(e) => {
             const val = Math.min(20, Math.max(1, parseInt(e.target.value) || 8))
             setCardCount(String(val))
@@ -517,16 +655,24 @@ function App() {
       </div>
 
       {error && <p className="error">{error}</p>}
+
       {loadingMessage && (
         <div>
           <p className="loading-msg">{loadingMessage}</p>
+
           {slowLoad && (
-            <p className="slow-load">⏳ Taking longer than expected... hang tight!</p>
+            <p className="slow-load">
+              ⏳ Taking longer than expected... hang tight!
+            </p>
           )}
         </div>
       )}
 
-      <button className="generate-btn" onClick={generateFlashcards} disabled={loading}>
+      <button
+        className="generate-btn"
+        onClick={generateFlashcards}
+        disabled={loading}
+      >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
 
@@ -535,14 +681,21 @@ function App() {
           {activeDeckName && (
             <p className="active-deck-name">📚 {activeDeckName}</p>
           )}
-          <p className="card-counter">{currentIndex + 1} / {cards.length}</p>
 
-          <div className={`card ${flipped ? "flipped" : ""}`} onClick={() => setFlipped(!flipped)}>
+          <p className="card-counter">
+            {currentIndex + 1} / {cards.length}
+          </p>
+
+          <div
+            className={`card ${flipped ? "flipped" : ""}`}
+            onClick={() => setFlipped(!flipped)}
+          >
             <div className="card-inner">
               <div className="card-front">
                 <p>{cards[currentIndex].question}</p>
                 <span className="hint">Click to reveal answer</span>
               </div>
+
               <div className="card-back">
                 <p>{cards[currentIndex].answer}</p>
                 <span className="hint">Click to see question</span>
@@ -551,10 +704,19 @@ function App() {
           </div>
 
           <div className="nav-buttons">
-            <button className="nav-btn" onClick={handlePrev} disabled={currentIndex === 0}>
+            <button
+              className="nav-btn"
+              onClick={handlePrev}
+              disabled={currentIndex === 0}
+            >
               ← Prev
             </button>
-            <button className="nav-btn" onClick={handleNext} disabled={currentIndex === cards.length - 1}>
+
+            <button
+              className="nav-btn"
+              onClick={handleNext}
+              disabled={currentIndex === cards.length - 1}
+            >
               Next →
             </button>
           </div>
@@ -571,21 +733,33 @@ function App() {
             {quizFinished ? (
               <div className="quiz-finished">
                 <p className="quiz-finished-emoji">
-                  {quizScore.correct === shuffledCards.length ? "🎉" :
-                   quizScore.correct >= shuffledCards.length / 2 ? "👍" : "📖"}
+                  {quizScore.correct === shuffledCards.length
+                    ? "🎉"
+                    : quizScore.correct >= shuffledCards.length / 2
+                    ? "👍"
+                    : "📖"}
                 </p>
+
                 <p className="quiz-finished-title">Quiz Complete!</p>
+
                 <p className="quiz-finished-score">
-                  You got <strong>{quizScore.correct}</strong> out of <strong>{shuffledCards.length}</strong> correct
+                  You got <strong>{quizScore.correct}</strong> out of{" "}
+                  <strong>{shuffledCards.length}</strong> correct
                 </p>
+
                 <p className="quiz-finished-pct">
                   {Math.round((quizScore.correct / shuffledCards.length) * 100)}%
                 </p>
+
                 <div className="quiz-feedback-btns">
                   <button className="quiz-correct-btn" onClick={startQuiz}>
                     Try Again
                   </button>
-                  <button className="quiz-wrong-btn" onClick={() => setQuizMode(false)}>
+
+                  <button
+                    className="quiz-wrong-btn"
+                    onClick={() => setQuizMode(false)}
+                  >
                     Close
                   </button>
                 </div>
@@ -593,12 +767,25 @@ function App() {
             ) : (
               <>
                 <div className="quiz-header">
-                  <p className="quiz-counter">{quizIndex + 1} / {shuffledCards.length}</p>
-                  <p className="quiz-score">✅ {quizScore.correct} / {quizScore.total}</p>
-                  <button className="quiz-close" onClick={() => setQuizMode(false)}>✕</button>
+                  <p className="quiz-counter">
+                    {quizIndex + 1} / {shuffledCards.length}
+                  </p>
+
+                  <p className="quiz-score">
+                    ✅ {quizScore.correct} / {quizScore.total}
+                  </p>
+
+                  <button
+                    className="quiz-close"
+                    onClick={() => setQuizMode(false)}
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <p className="quiz-question">{shuffledCards[quizIndex]?.question}</p>
+                <p className="quiz-question">
+                  {shuffledCards[quizIndex]?.question}
+                </p>
 
                 {quizResult === null ? (
                   <>
@@ -608,30 +795,43 @@ function App() {
                       value={userAnswer}
                       onChange={(e) => setUserAnswer(e.target.value)}
                     />
+
                     <button
                       className="quiz-check-btn"
-                      onClick={() => {
-                        if (!userAnswer.trim()) return
-                        setQuizResult(shuffledCards[quizIndex].answer)
-                        setQuizScore(s => ({ ...s, total: s.total + 1 }))
-                      }}
+                      onClick={checkAnswerWithAI}
+                      disabled={checkingAnswer}
                     >
-                      Check Answer
+                      {checkingAnswer ? "Checking..." : "Check with AI"}
                     </button>
                   </>
                 ) : (
                   <>
+                    <div
+                      className={
+                        aiCorrect
+                          ? "ai-feedback ai-correct"
+                          : "ai-feedback ai-wrong"
+                      }
+                    >
+                      <strong>{aiCorrect ? "Correct!" : "Not quite"}</strong>
+                      <p>{aiFeedback}</p>
+                    </div>
+
                     <div className="quiz-answer">
                       <p className="quiz-answer-label">Correct Answer:</p>
                       <p>{quizResult}</p>
                     </div>
-                    <p className="quiz-your-answer-label">Your Answer: <span>{userAnswer}</span></p>
+
+                    <p className="quiz-your-answer-label">
+                      Your Answer: <span>{userAnswer}</span>
+                    </p>
+
                     <div className="quiz-feedback-btns">
-                      <button className="quiz-correct-btn" onClick={() => nextQuizCard(true)}>
-                        ✅ Got it
-                      </button>
-                      <button className="quiz-wrong-btn" onClick={() => nextQuizCard(false)}>
-                        ❌ Missed it
+                      <button
+                        className="quiz-correct-btn"
+                        onClick={nextQuizCard}
+                      >
+                        Next
                       </button>
                     </div>
                   </>
