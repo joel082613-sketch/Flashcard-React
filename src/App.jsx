@@ -11,6 +11,7 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [loginError, setLoginError] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
@@ -161,84 +162,85 @@ Grade the student answer.`
   }
 
   async function handleLogin() {
-    if (!cleanFirstName || !cleanNumberId) {
-      setLoginError("Please enter your first name and number ID.")
-      return
-    }
-
-    setLoginError("")
-    setLoginLoading(true)
-
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("first_name", cleanFirstName)
-      .eq("number_id", cleanNumberId)
-      .maybeSingle()
-
-    if (error) {
-      console.error("Login error:", error)
-      setLoginError("Database error: " + error.message)
-      setLoginLoading(false)
-      return
-    }
-
-    if (data) {
-      setLoggedIn(true)
-      loadSavedDecks(userKey)
-    } else {
-      setLoginError("Account not found. Would you like to create one?")
-    }
-
-    setLoginLoading(false)
+  if (!cleanFirstName || !cleanNumberId) {
+    setLoginError("Please enter your first name and number ID.")
+    return
   }
 
-  async function handleCreateAccount() {
-    if (!cleanFirstName || !cleanNumberId) {
-      setLoginError("Please enter your first name and number ID.")
-      return
-    }
+  setLoginError("")
+  setLoginLoading(true)
 
-    setLoginError("")
-    setLoginLoading(true)
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("first_name", cleanFirstName)
+    .eq("number_id", cleanNumberId)
+    .maybeSingle()
 
-    const { data: existingUser, error: checkError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("first_name", cleanFirstName)
-      .eq("number_id", cleanNumberId)
-      .maybeSingle()
-
-    if (checkError) {
-      console.error("Create account check error:", checkError)
-      setLoginError("Database error: " + checkError.message)
-      setLoginLoading(false)
-      return
-    }
-
-    if (existingUser) {
-      setLoginError("That account already exists. Try logging in.")
-      setLoginLoading(false)
-      return
-    }
-
-    const { error } = await supabase.from("users").insert([
-      {
-        pin: userKey,
-        first_name: cleanFirstName,
-        number_id: cleanNumberId
-      }
-    ])
-
-    if (error) {
-      setLoginError("Could not create account: " + error.message)
-    } else {
-      setLoggedIn(true)
-      setSavedDecks([])
-    }
-
+  if (error) {
+    console.error("Login error:", error)
+    setLoginError("Database error: " + error.message)
     setLoginLoading(false)
+    return
   }
+
+  if (data) {
+    setLoggedIn(true)
+    loadSavedDecks(userKey)
+  } else {
+    setLoginError("Account not found. Would you like to create one?")
+  }
+
+  setLoginLoading(false)
+}
+
+async function handleCreateAccount() {
+  if (!cleanFirstName || !cleanNumberId) {
+    setLoginError("Please enter your first name and number ID.")
+    return
+  }
+
+  setLoginError("")
+  setCreateLoading(true)
+
+  const { data: existingUser, error: checkError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("first_name", cleanFirstName)
+    .eq("number_id", cleanNumberId)
+    .maybeSingle()
+
+  if (checkError) {
+    console.error("Create account check error:", checkError)
+    setLoginError("Database error: " + checkError.message)
+    setCreateLoading(false)
+    return
+  }
+
+  if (existingUser) {
+    setLoginError("That account already exists. Try logging in.")
+    setCreateLoading(false)
+    return
+  }
+
+  const { error } = await supabase.from("users").insert([
+    {
+      pin: userKey,
+      first_name: cleanFirstName,
+      number_id: cleanNumberId
+    }
+  ])
+
+  if (error) {
+    setLoginError("Could not create account: " + error.message)
+  } else {
+    setLoggedIn(true)
+    setSavedDecks([])
+  }
+
+  setCreateLoading(false)
+}
+
 
   async function loadSavedDecks(currentUserKey) {
     const { data, error } = await supabase
@@ -657,20 +659,22 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
           {loginError && <p className="login-error">{loginError}</p>}
 
           <button
-            className="generate-btn"
-            onClick={handleLogin}
-            disabled={loginLoading}
-          >
-            {loginLoading ? "Logging in..." : "Login"}
-          </button>
+  type="button"
+  className="generate-btn"
+  onClick={handleLogin}
+  disabled={loginLoading || createLoading}
+>
+  {loginLoading ? "Logging in..." : "Login"}
+</button>
 
-          <button
-            className="create-btn"
-            onClick={handleCreateAccount}
-            disabled={loginLoading}
-          >
-            {loginLoading ? "Creating..." : "Create Account"}
-          </button>
+<button
+  type="button"
+  className="create-btn"
+  onClick={handleCreateAccount}
+  disabled={loginLoading || createLoading}
+>
+  {createLoading ? "Creating..." : "Create Account"}
+</button>
         </div>
       </div>
     )
