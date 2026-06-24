@@ -141,10 +141,12 @@
 html,
 body {
   width: 100%;
+  max-width: 100%;
   min-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
 }
+
 
 body {
   background: linear-gradient(
@@ -165,9 +167,9 @@ body {
 
 #root {
   width: 100%;
+  max-width: 100%;
   min-height: 100dvh;
   overflow-x: hidden;
-  overflow-y: visible;
 }
 
 .container {
@@ -1170,5 +1172,39 @@ button:disabled {
 
   .card-count {
     margin: 6px auto;
+  }
+}
+
+@media (max-width: 600px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .top-bar,
+  .top-buttons,
+  .saved-decks,
+  .deck-list,
+  .deck-group,
+  .deck-version-controls,
+  .cards-section,
+  .card,
+  .nav-buttons,
+  .quiz-box {
+    max-width: 100%;
+  }
+
+  .deck-version-controls,
+  .nav-buttons,
+  .top-buttons {
+    flex-wrap: wrap;
   }
 }
