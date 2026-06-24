@@ -35,6 +35,7 @@ function App() {
   const [aiCorrect, setAiCorrect] = useState(null)
   const [checkingAnswer, setCheckingAnswer] = useState(false)
   const [isShuffling, setIsShuffling] = useState(false)
+  const [isSwitchingCard, setIsSwitchingCard] = useState(false)
 
   const engineRef = useRef(null)
   const notesRef = useRef(null)
@@ -78,8 +79,10 @@ function App() {
   async function checkAnswerWithAI(answerOverride = null) {
     const answerToCheck = (answerOverride ?? userAnswer).trim()
 
-if (!answerToCheck) return
-if (!shuffledCards[quizIndex]) return
+    if (!answerToCheck) return
+    if (!shuffledCards[quizIndex]) return
+    if (checkingAnswer) return
+
     setCheckingAnswer(true)
     setAiFeedback("")
     setAiCorrect(null)
@@ -162,85 +165,84 @@ Grade the student answer.`
   }
 
   async function handleLogin() {
-  if (!cleanFirstName || !cleanNumberId) {
-    setLoginError("Please enter your first name and number ID.")
-    return
-  }
-
-  setLoginError("")
-  setLoginLoading(true)
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("first_name", cleanFirstName)
-    .eq("number_id", cleanNumberId)
-    .maybeSingle()
-
-  if (error) {
-    console.error("Login error:", error)
-    setLoginError("Database error: " + error.message)
-    setLoginLoading(false)
-    return
-  }
-
-  if (data) {
-    setLoggedIn(true)
-    loadSavedDecks(userKey)
-  } else {
-    setLoginError("Account not found. Would you like to create one?")
-  }
-
-  setLoginLoading(false)
-}
-
-async function handleCreateAccount() {
-  if (!cleanFirstName || !cleanNumberId) {
-    setLoginError("Please enter your first name and number ID.")
-    return
-  }
-
-  setLoginError("")
-  setCreateLoading(true)
-
-  const { data: existingUser, error: checkError } = await supabase
-    .from("users")
-    .select("*")
-    .eq("first_name", cleanFirstName)
-    .eq("number_id", cleanNumberId)
-    .maybeSingle()
-
-  if (checkError) {
-    console.error("Create account check error:", checkError)
-    setLoginError("Database error: " + checkError.message)
-    setCreateLoading(false)
-    return
-  }
-
-  if (existingUser) {
-    setLoginError("That account already exists. Try logging in.")
-    setCreateLoading(false)
-    return
-  }
-
-  const { error } = await supabase.from("users").insert([
-    {
-      pin: userKey,
-      first_name: cleanFirstName,
-      number_id: cleanNumberId
+    if (!cleanFirstName || !cleanNumberId) {
+      setLoginError("Please enter your first name and number ID.")
+      return
     }
-  ])
 
-  if (error) {
-    setLoginError("Could not create account: " + error.message)
-  } else {
-    setLoggedIn(true)
-    setSavedDecks([])
+    setLoginError("")
+    setLoginLoading(true)
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("first_name", cleanFirstName)
+      .eq("number_id", cleanNumberId)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Login error:", error)
+      setLoginError("Database error: " + error.message)
+      setLoginLoading(false)
+      return
+    }
+
+    if (data) {
+      setLoggedIn(true)
+      loadSavedDecks(userKey)
+    } else {
+      setLoginError("Account not found. Would you like to create one?")
+    }
+
+    setLoginLoading(false)
   }
 
-  setCreateLoading(false)
-}
+  async function handleCreateAccount() {
+    if (!cleanFirstName || !cleanNumberId) {
+      setLoginError("Please enter your first name and number ID.")
+      return
+    }
 
+    setLoginError("")
+    setCreateLoading(true)
+
+    const { data: existingUser, error: checkError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("first_name", cleanFirstName)
+      .eq("number_id", cleanNumberId)
+      .maybeSingle()
+
+    if (checkError) {
+      console.error("Create account check error:", checkError)
+      setLoginError("Database error: " + checkError.message)
+      setCreateLoading(false)
+      return
+    }
+
+    if (existingUser) {
+      setLoginError("That account already exists. Try logging in.")
+      setCreateLoading(false)
+      return
+    }
+
+    const { error } = await supabase.from("users").insert([
+      {
+        pin: userKey,
+        first_name: cleanFirstName,
+        number_id: cleanNumberId
+      }
+    ])
+
+    if (error) {
+      setLoginError("Could not create account: " + error.message)
+    } else {
+      setLoggedIn(true)
+      setSavedDecks([])
+    }
+
+    setCreateLoading(false)
+  }
 
   async function loadSavedDecks(currentUserKey) {
     const { data, error } = await supabase
@@ -307,6 +309,7 @@ async function handleCreateAccount() {
     setAiFeedback("")
     setAiCorrect(null)
     setIsShuffling(false)
+    setIsSwitchingCard(false)
   }
 
   function getGroupedSavedDecks() {
@@ -383,6 +386,8 @@ async function handleCreateAccount() {
       return
     }
 
+    if (loading) return
+
     setLoading(true)
     setError("")
     setCards([])
@@ -390,6 +395,7 @@ async function handleCreateAccount() {
     setSlowLoad(false)
     setLoadingMessage("")
     setIsShuffling(false)
+    setIsSwitchingCard(false)
 
     const needed = parseInt(cardCount) || 8
     const existing = await checkExistingDeck(notes, needed)
@@ -516,6 +522,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       setActiveDeckName("")
       setQuizMode(false)
       setIsShuffling(false)
+      setIsSwitchingCard(false)
 
       alert("Account deleted successfully.")
     } catch (err) {
@@ -568,23 +575,43 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       setActiveDeckName("")
       setQuizMode(false)
       setIsShuffling(false)
+      setIsSwitchingCard(false)
     }
   }
 
-  function handlePrev() {
-    setCurrentIndex((i) => Math.max(i - 1, 0))
+  function switchCard(direction) {
+    if (isSwitchingCard || isShuffling) return
+
+    setIsSwitchingCard(true)
     setFlipped(false)
+
+    setTimeout(() => {
+      setCurrentIndex((current) => {
+        const nextIndex = current + direction
+
+        if (nextIndex < 0) return 0
+        if (nextIndex > cards.length - 1) return cards.length - 1
+
+        return nextIndex
+      })
+
+      setIsSwitchingCard(false)
+    }, 195)
+  }
+
+  function handlePrev() {
+    switchCard(-1)
   }
 
   function handleNext() {
-    setCurrentIndex((i) => Math.min(i + 1, cards.length - 1))
-    setFlipped(false)
+    switchCard(1)
   }
 
   function shuffleFlashcards() {
     if (cards.length < 2 || isShuffling) return
 
     setIsShuffling(true)
+    setIsSwitchingCard(false)
     setFlipped(false)
 
     setTimeout(() => {
@@ -659,22 +686,22 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
           {loginError && <p className="login-error">{loginError}</p>}
 
           <button
-  type="button"
-  className="generate-btn"
-  onClick={handleLogin}
-  disabled={loginLoading || createLoading}
->
-  {loginLoading ? "Logging in..." : "Login"}
-</button>
+            type="button"
+            className="generate-btn"
+            onClick={handleLogin}
+            disabled={loginLoading || createLoading}
+          >
+            {loginLoading ? "Logging in..." : "Login"}
+          </button>
 
-<button
-  type="button"
-  className="create-btn"
-  onClick={handleCreateAccount}
-  disabled={loginLoading || createLoading}
->
-  {createLoading ? "Creating..." : "Create Account"}
-</button>
+          <button
+            type="button"
+            className="create-btn"
+            onClick={handleCreateAccount}
+            disabled={loginLoading || createLoading}
+          >
+            {createLoading ? "Creating..." : "Create Account"}
+          </button>
         </div>
       </div>
     )
@@ -687,6 +714,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
         <div className="top-buttons">
           <button
+            type="button"
             className="logout-btn"
             onClick={() => {
               setLoggedIn(false)
@@ -699,12 +727,17 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
               setActiveDeckName("")
               setQuizMode(false)
               setIsShuffling(false)
+              setIsSwitchingCard(false)
             }}
           >
             Logout
           </button>
 
-          <button className="delete-account-btn" onClick={deleteAccount}>
+          <button
+            type="button"
+            className="delete-account-btn"
+            onClick={deleteAccount}
+          >
             Delete Account
           </button>
         </div>
@@ -748,6 +781,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                     </select>
 
                     <button
+                      type="button"
                       className="deck-btn"
                       onClick={() => loadDeck(selectedDeck)}
                     >
@@ -755,6 +789,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                     </button>
 
                     <button
+                      type="button"
                       className="deck-delete-btn"
                       onClick={() => deleteSavedDeck(selectedDeck)}
                     >
@@ -769,23 +804,23 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       )}
 
       <textarea
-  ref={notesRef}
-  className="notes-input"
-  placeholder="Paste your notes here..."
-  value={notes}
-  onChange={(e) => {
-    setNotes(e.target.value)
-  }}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
+        ref={notesRef}
+        className="notes-input"
+        placeholder="Paste your notes here..."
+        value={notes}
+        onChange={(e) => {
+          setNotes(e.target.value)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault()
 
-      if (!loading && notes.trim()) {
-        generateFlashcards()
-      }
-    }
-  }}
-/>
+            if (!loading && notes.trim()) {
+              generateFlashcards()
+            }
+          }
+        }}
+      />
 
       <div className="card-count">
         <label>Number of flashcards</label>
@@ -818,6 +853,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       )}
 
       <button
+        type="button"
         className="generate-btn"
         onClick={generateFlashcards}
         disabled={loading}
@@ -839,7 +875,9 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             className={`card ${flipped ? "flipped" : ""} ${
               isShuffling ? "shuffle-animation" : ""
             }`}
-            onClick={() => !isShuffling && setFlipped(!flipped)}
+            onClick={() =>
+              !isShuffling && !isSwitchingCard && setFlipped(!flipped)
+            }
           >
             <div className="card-inner">
               <div className="card-front">
@@ -858,31 +896,43 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
           <div className="nav-buttons">
             <button
+              type="button"
               className="nav-btn"
               onClick={handlePrev}
-              disabled={currentIndex === 0 || isShuffling}
+              disabled={currentIndex === 0 || isShuffling || isSwitchingCard}
             >
               ← Prev
             </button>
 
             <button
+              type="button"
               className="nav-btn shuffle-btn"
               onClick={shuffleFlashcards}
-              disabled={cards.length < 2 || isShuffling}
+              disabled={cards.length < 2 || isShuffling || isSwitchingCard}
             >
               {isShuffling ? "🔄 Shuffling..." : "🔀 Shuffle"}
             </button>
 
             <button
+              type="button"
               className="nav-btn"
               onClick={handleNext}
-              disabled={currentIndex === cards.length - 1 || isShuffling}
+              disabled={
+                currentIndex === cards.length - 1 ||
+                isShuffling ||
+                isSwitchingCard
+              }
             >
               Next →
             </button>
           </div>
 
-          <button className="quiz-btn" onClick={startQuiz} disabled={isShuffling}>
+          <button
+            type="button"
+            className="quiz-btn"
+            onClick={startQuiz}
+            disabled={isShuffling || isSwitchingCard}
+          >
             ✏️ Try it yourself
           </button>
         </div>
@@ -913,11 +963,16 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                 </p>
 
                 <div className="quiz-feedback-btns">
-                  <button className="quiz-correct-btn" onClick={startQuiz}>
+                  <button
+                    type="button"
+                    className="quiz-correct-btn"
+                    onClick={startQuiz}
+                  >
                     Try Again
                   </button>
 
                   <button
+                    type="button"
                     className="quiz-wrong-btn"
                     onClick={() => setQuizMode(false)}
                   >
@@ -937,6 +992,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                   </p>
 
                   <button
+                    type="button"
                     className="quiz-close"
                     onClick={() => setQuizMode(false)}
                   >
@@ -951,21 +1007,27 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                 {quizResult === null ? (
                   <>
                     <textarea
-  className="quiz-input"
-  placeholder="Type your answer..."
-  value={userAnswer}
-  onChange={(e) => setUserAnswer(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === "Enter" && !e.shiftKey && !checkingAnswer) {
-      e.preventDefault()
-      checkAnswerWithAI()
-    }
-  }}
-/>
+                      className="quiz-input"
+                      placeholder="Type your answer..."
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault()
+
+                          const answer = e.currentTarget.value.trim()
+
+                          if (!checkingAnswer && answer) {
+                            checkAnswerWithAI(answer)
+                          }
+                        }
+                      }}
+                    />
 
                     <button
+                      type="button"
                       className="quiz-check-btn"
-                      onClick={checkAnswerWithAI}
+                      onClick={() => checkAnswerWithAI(userAnswer)}
                       disabled={checkingAnswer}
                     >
                       {checkingAnswer ? "Checking..." : "Check with AI"}
@@ -995,6 +1057,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
                     <div className="quiz-feedback-btns">
                       <button
+                        type="button"
                         className="quiz-correct-btn"
                         onClick={nextQuizCard}
                       >
