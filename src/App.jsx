@@ -963,16 +963,16 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             </button>
           </div>
 
-          <button
-            type="button"
-            className="quiz-btn"
-            onClick={startQuiz}
-            disabled={isShuffling || isSwitchingCard}
-          >
-            ✏️ Try it yourself
-          </button>
-        </div>
-      )}
+          {!isMobileDevice() && (
+  <button
+    type="button"
+    className="quiz-btn"
+    onClick={startQuiz}
+    disabled={isShuffling || isSwitchingCard}
+  >
+    ✏️ Try it yourself
+  </button>
+)}
 
       {quizMode && (
         <div className="quiz-overlay">

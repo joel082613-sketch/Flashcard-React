@@ -138,18 +138,22 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   width: 100%;
   max-width: 100%;
   min-height: 100%;
   overflow-x: hidden;
-  overflow-y: auto;
+  background: #16001f;
 }
 
-
 body {
-  background: linear-gradient(
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #16001f;
+  background-image: linear-gradient(
     -45deg,
     #16001f,
     #3b003b,
@@ -170,6 +174,23 @@ body {
   max-width: 100%;
   min-height: 100dvh;
   overflow-x: hidden;
+  background: inherit;
+}
+
+@supports (-webkit-touch-callout: none) {
+  html,
+  body,
+  #root {
+    background-color: #16001f;
+  }
+
+  body {
+    min-height: -webkit-fill-available;
+  }
+
+  #root {
+    min-height: -webkit-fill-available;
+  }
 }
 
 .container {
@@ -182,7 +203,7 @@ body {
   flex-direction: column;
   justify-content: flex-start;
   gap: clamp(10px, 1.4vh, 16px);
-  overflow: visible;
+  overflow-x: hidden;
 }
 
 h1,
@@ -376,6 +397,7 @@ button:disabled {
   justify-content: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .pin-input,
@@ -505,6 +527,7 @@ button:disabled {
   gap: 8px;
   max-height: 104px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 6px;
 }
 
@@ -559,6 +582,7 @@ button:disabled {
   justify-content: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .deck-version-select,
@@ -574,6 +598,7 @@ button:disabled {
   padding: 4px 8px;
   border-radius: 8px;
   font-size: 12px;
+  transform: translateY(4px);
 }
 
 .deck-btn {
@@ -605,6 +630,7 @@ button:disabled {
   box-shadow: 0 16px 45px rgba(0, 0, 0, 0.28);
   animation: popout 0.35s ease;
   transition: box-shadow 0.25s ease;
+  max-width: 100%;
 }
 
 .cards-section.is-shuffling {
@@ -637,6 +663,7 @@ button:disabled {
 
 .card {
   width: 100%;
+  max-width: 100%;
   height: clamp(150px, 28vh, 240px);
   perspective: 1000px;
   cursor: pointer;
@@ -733,6 +760,7 @@ button:disabled {
   line-height: 1.5;
   font-size: clamp(13px, 1.8vw, 16px);
   overflow-y: auto;
+  overflow-x: hidden;
   overflow-wrap: break-word;
   word-wrap: break-word;
 }
@@ -789,6 +817,7 @@ button:disabled {
   max-width: 100%;
   max-height: calc(100dvh - 24px);
   overflow-y: auto;
+  overflow-x: hidden;
   background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 22px;
@@ -836,6 +865,7 @@ button:disabled {
   height: clamp(80px, 18vh, 120px);
   resize: vertical;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 14px;
   border-radius: 14px;
   font-size: 15px;
@@ -882,6 +912,7 @@ button:disabled {
   justify-content: center;
   gap: 12px;
   margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .quiz-correct-btn {
@@ -960,8 +991,13 @@ button:disabled {
 }
 
 @media (prefers-color-scheme: light) {
+  html {
+    background: #ffe4e6;
+  }
+
   body {
-    background: linear-gradient(
+    background-color: #ffe4e6;
+    background-image: linear-gradient(
       -45deg,
       #ffe4e6,
       #ffedd5,
@@ -974,6 +1010,18 @@ button:disabled {
     background-size: 400% 400%;
     animation: lightGradientMove 14s ease infinite;
     color: #0f172a;
+  }
+
+  #root {
+    background: inherit;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    html,
+    body,
+    #root {
+      background-color: #ffe4e6;
+    }
   }
 
   h1,
@@ -1134,8 +1182,20 @@ button:disabled {
 }
 
 @media (max-width: 600px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .container {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100dvh;
     padding: 34px 14px 28px;
+    overflow-x: hidden;
   }
 
   .top-bar {
@@ -1145,11 +1205,24 @@ button:disabled {
 
   .top-buttons {
     justify-content: center;
+    max-width: 100%;
+    flex-wrap: wrap;
   }
 
   .login-box h1 {
     white-space: normal;
     font-size: 32px;
+  }
+
+  .saved-decks,
+  .deck-list,
+  .deck-group,
+  .deck-version-controls,
+  .cards-section,
+  .card,
+  .nav-buttons,
+  .quiz-box {
+    max-width: 100%;
   }
 
   .deck-group {
@@ -1164,47 +1237,18 @@ button:disabled {
 
   .deck-version-controls {
     justify-content: center;
+    flex-wrap: wrap;
   }
 
   .deck-version-select {
     width: 110px;
   }
 
+  .nav-buttons {
+    flex-wrap: wrap;
+  }
+
   .card-count {
     margin: 6px auto;
-  }
-}
-
-@media (max-width: 600px) {
-  html,
-  body,
-  #root {
-    overflow-x: hidden;
-    max-width: 100%;
-  }
-
-  .container {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .top-bar,
-  .top-buttons,
-  .saved-decks,
-  .deck-list,
-  .deck-group,
-  .deck-version-controls,
-  .cards-section,
-  .card,
-  .nav-buttons,
-  .quiz-box {
-    max-width: 100%;
-  }
-
-  .deck-version-controls,
-  .nav-buttons,
-  .top-buttons {
-    flex-wrap: wrap;
   }
 }
