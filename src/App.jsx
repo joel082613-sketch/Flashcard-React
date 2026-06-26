@@ -585,29 +585,24 @@ Is the student answer correct? Return only JSON.`
           messages: [
             {
               role: "system",
-              content: `You are a helpful flashcard generator for students.
+              content: `You are a fair flashcard quiz grader.
 
-Return ONLY a JSON array. No markdown. No extra text.
-
-Each item must look like this:
-{"question": "clear question", "answer": "clear answer"}
+Return ONLY valid JSON like this:
+{"correct": false, "feedback": "short feedback"}
 
 Rules:
-- Make questions simple and easy to study.
-- Make answers accurate and useful.
-- Answers should usually be 1-2 short sentences.
-- Explain the meaning, not just one word.
-- If the answer is a law, term, or definition, include the name and what it means.
-- Do not make the answer too long.
-- Do not include quotes around the whole array except normal JSON quotes.
+- Grade by meaning, not exact wording.
+- Mark correct true if the student answer gives the same main idea.
+- A formula and the words that describe the formula mean the same thing.
+- Example: "F = ma" and "force equals mass times acceleration" are both correct.
+- Example: "Newton's Second Law says force depends on mass and acceleration" is correct.
+- The student does NOT need every detail from the correct answer.
+- Short answers can be correct if they clearly answer the question.
+- Mark false only if the answer is wrong, a different law, missing the main idea, or too vague.
+- Ignore small spelling and grammar mistakes.
+- Feedback must be one short sentence.
+- Return only JSON.`
 
-Example:
-[
-  {
-    "question": "What is Newton's First Law?",
-    "answer": "Newton's First Law, also called the law of inertia, says an object stays still or keeps moving unless a force changes its motion."
-  }
-]`
             },
             {
               role: "user",
