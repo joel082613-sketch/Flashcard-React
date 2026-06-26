@@ -585,11 +585,29 @@ Is the student answer correct? Return only JSON.`
           messages: [
             {
               role: "system",
-              content: `You are a flashcard generator. Return ONLY a JSON array with no extra text.
-Each item must have a "question" and "answer" field.
-Make answers clear, helpful, and not too long.
-On mobile, keep answers short, about 1 sentence each.
-Example: [{"question": "What is X?", "answer": "X is..."}]`
+              content: `You are a helpful flashcard generator for students.
+
+Return ONLY a JSON array. No markdown. No extra text.
+
+Each item must look like this:
+{"question": "clear question", "answer": "clear answer"}
+
+Rules:
+- Make questions simple and easy to study.
+- Make answers accurate and useful.
+- Answers should usually be 1-2 short sentences.
+- Explain the meaning, not just one word.
+- If the answer is a law, term, or definition, include the name and what it means.
+- Do not make the answer too long.
+- Do not include quotes around the whole array except normal JSON quotes.
+
+Example:
+[
+  {
+    "question": "What is Newton's First Law?",
+    "answer": "Newton's First Law, also called the law of inertia, says an object stays still or keeps moving unless a force changes its motion."
+  }
+]`
             },
             {
               role: "user",
