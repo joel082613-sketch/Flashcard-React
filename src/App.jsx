@@ -57,6 +57,9 @@ function App() {
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
   const [isMobile, setIsMobile] = useState(() => isMobileDevice())
 
+  const [modelReady, setModelReady] = useState(false)
+  const [modelDownloading, setModelDownloading] = useState(false)
+
   const engineRef = useRef(null)
   const modelRef = useRef(null)
   const notesRef = useRef(null)
@@ -106,11 +109,13 @@ function App() {
     const selectedModel = getBestModel()
 
     if (engineRef.current && modelRef.current === selectedModel) {
+      setModelReady(true)
       return engineRef.current
     }
 
     engineRef.current = null
     modelRef.current = selectedModel
+    setModelReady(false)
 
     const webllm = await import("@mlc-ai/web-llm")
 
@@ -127,7 +132,32 @@ function App() {
     })
 
     engineRef.current = engine
+    setModelReady(true)
     return engine
+  }
+
+  async function downloadAIModel() {
+    if (modelDownloading || modelReady) return
+
+    setError("")
+    setModelDownloading(true)
+    setLoadingMessage("Starting AI model download...")
+
+    try {
+      await getEngine()
+
+      setModelReady(true)
+      setLoadingMessage("AI model ready!")
+    } catch (err) {
+      console.error(err)
+      setError("Could not download AI model: " + err.message)
+    }
+
+    setModelDownloading(false)
+
+    setTimeout(() => {
+      setLoadingMessage("")
+    }, 1800)
   }
 
   async function checkAnswerWithAI(answerOverride = null) {
@@ -553,6 +583,11 @@ Return only JSON.`
     }
 
     try {
+      if (!modelReady) {
+        setLoadingMessage("Preparing AI model...")
+        await getEngine()
+      }
+
       const engine = await getEngine()
       let allCards = []
       let attempts = 0
@@ -660,6 +695,7 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
       setQuizMode(false)
       setIsShuffling(false)
       setIsSwitchingCard(false)
+      setModelReady(false)
 
       alert("Account deleted successfully.")
     } catch (err) {
@@ -872,6 +908,7 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
               setQuizMode(false)
               setIsShuffling(false)
               setIsSwitchingCard(false)
+              setModelReady(false)
             }}
           >
             Logout
@@ -891,8 +928,8 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
 
       {isOnMobile && (
         <p className="error">
-          Mobile mode is using the smaller Llama 1B model. It may take a little
-          while the first time.
+          Mobile mode is using the smaller Llama 1B model. Tap Download AI first
+          for the best chance of avoiding crashes.
         </p>
       )}
 
@@ -1007,8 +1044,21 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
       <button
         type="button"
         className="generate-btn"
+        onClick={downloadAIModel}
+        disabled={modelDownloading || modelReady || loading}
+      >
+        {modelReady
+          ? "AI Ready ✅"
+          : modelDownloading
+            ? "Downloading AI..."
+            : "Download AI"}
+      </button>
+
+      <button
+        type="button"
+        className="generate-btn"
         onClick={generateFlashcards}
-        disabled={loading}
+        disabled={loading || modelDownloading}
       >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
