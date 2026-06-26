@@ -154,19 +154,21 @@ function App() {
         messages: [
           {
             role: "system",
-            content: `You are a strict but helpful flashcard quiz grader.
+           content: `You are a flashcard quiz grader.
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON:
 {
   "correct": true,
-  "feedback": "short helpful feedback"
+  "feedback": "short feedback"
 }
 
-Rules:
-- If the student's answer is mostly correct, use true.
-- If it is wrong, too incomplete, or missing the main idea, use false.
-- Keep feedback 1-2 sentences.
-- Do not add anything outside the JSON.`
+Grading rules:
+- Grade based on meaning, not exact wording.
+- Mark correct if the student explains the same idea in their own words.
+- Ignore small spelling, grammar, and punctuation mistakes.
+- Mark wrong only if the answer misses the main idea or says something incorrect.
+- Keep feedback short.
+- Return only JSON.`
           },
           {
             role: "user",
@@ -176,11 +178,11 @@ Correct answer: ${currentCard.answer}
 
 Student answer: ${answerToCheck}
 
-Grade the student answer.`
+Grade the student answer strictly.`
           }
         ],
-        temperature: 0.2,
-        max_tokens: isMobileDevice() ? 150 : 250
+        temperature: 0,
+        max_tokens: isMobileDevice() ? 180 : 250
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -191,10 +193,22 @@ Grade the student answer.`
       try {
         result = JSON.parse(text)
       } catch {
+        const lowerText = text.toLowerCase()
+
+        let fallbackCorrect = false
+
+        if (
+          lowerText.includes('"correct": true') ||
+          lowerText.includes("correct: true")
+        ) {
+          fallbackCorrect = true
+        }
+
         result = {
-          correct: false,
-          feedback:
-            "The AI could not grade this clearly. Compare your answer with the correct answer below."
+          correct: fallbackCorrect,
+          feedback: fallbackCorrect
+            ? "Your answer includes the main idea."
+            : "Your answer is missing the main idea. Compare it with the correct answer below."
         }
       }
 
