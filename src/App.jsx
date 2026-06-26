@@ -141,34 +141,72 @@ function App() {
     setAiFeedback("")
     setAiCorrect(null)
 
+    const currentCard = shuffledCards[quizIndex]
+
+    function simpleFallbackGrade() {
+      const student = answerToCheck.toLowerCase()
+      const correct = currentCard.answer.toLowerCase()
+      const question = currentCard.question.toLowerCase()
+
+      const importantWords = correct
+        .replace(/[^\w\s]/g, "")
+        .split(/\s+/)
+        .filter((word) => word.length > 4)
+
+      const matchedWords = importantWords.filter((word) =>
+        student.includes(word)
+      )
+
+      const mentionsNewtonLaw =
+        student.includes("newton") &&
+        (student.includes("first") ||
+          student.includes("second") ||
+          student.includes("third") ||
+          student.includes("law"))
+
+      const asksNewtonLaw =
+        question.includes("newton") ||
+        question.includes("law") ||
+        correct.includes("newton")
+
+      const fallbackCorrect =
+        matchedWords.length >= 2 || (asksNewtonLaw && mentionsNewtonLaw)
+
+      setAiCorrect(fallbackCorrect)
+      setAiFeedback(
+        fallbackCorrect
+          ? "Your answer seems to include the main idea."
+          : "Your answer may be missing the main idea. Compare it with the correct answer below."
+      )
+      setQuizResult(currentCard.answer)
+
+      setQuizScore((score) => ({
+        correct: score.correct + (fallbackCorrect ? 1 : 0),
+        total: score.total + 1
+      }))
+    }
+
     try {
       if (isMobileDevice()) {
         setLoadingMessage("Waiting before checking answer...")
-        await sleep(1200)
+        await sleep(1500)
       }
 
       const engine = await getEngine()
-      const currentCard = shuffledCards[quizIndex]
 
       const reply = await engine.chat.completions.create({
         messages: [
           {
             role: "system",
-           content: `You are a flashcard quiz grader.
+            content: `You are a flashcard quiz grader.
 
-Return ONLY valid JSON:
-{
-  "correct": true,
-  "feedback": "short feedback"
-}
+Return ONLY this JSON format:
+{"correct": true, "feedback": "short feedback"}
 
-Grading rules:
-- Grade based on meaning, not exact wording.
-- Mark correct if the student explains the same idea in their own words.
-- Ignore small spelling, grammar, and punctuation mistakes.
-- Mark wrong only if the answer misses the main idea or says something incorrect.
-- Keep feedback short.
-- Return only JSON.`
+Grade by meaning, not exact wording.
+If the student answer means the same thing, mark correct true.
+Ignore small spelling mistakes.
+If the answer is missing the main idea, mark correct false.`
           },
           {
             role: "user",
@@ -178,14 +216,33 @@ Correct answer: ${currentCard.answer}
 
 Student answer: ${answerToCheck}
 
-Grade the student answer strictly.`
+Return only JSON.`
           }
         ],
         temperature: 0,
-        max_tokens: isMobileDevice() ? 180 : 250
+        max_tokens: isMobileDevice() ? 120 : 200
       })
 
       let text = reply.choices[0].message.content.trim()
+
+      text = text.replace(/```json/g, "").replace(/```/g, "").trim()
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+
+      if (jsonMatch) {
+        text = jsonMatch[0]
+      }
+
+      let result
+
+      try {
+        result = JSON.parse(text)
+      } catch {
+        simpleFallbackGrade()
+        setCheckingAnswer(false)
+        setLoadingMessage("")
+        return
+      }
 
       const isCorrect = result.correct === true
 
@@ -198,16 +255,8 @@ Grade the student answer strictly.`
         total: score.total + 1
       }))
     } catch (err) {
-      console.error(err)
-
-      setAiCorrect(false)
-      setAiFeedback("Something went wrong while checking your answer.")
-      setQuizResult(shuffledCards[quizIndex]?.answer || "")
-
-      setQuizScore((score) => ({
-        correct: score.correct,
-        total: score.total + 1
-      }))
+      console.error("AI grading failed:", err)
+      simpleFallbackGrade()
     }
 
     setCheckingAnswer(false)
@@ -841,8 +890,9 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
       {isOnMobile && (
-        <p className="error">let text = reply.choices[0].message.content.trim()
-          Mobile mode is using the smaller Llama 1B model. It may crash the first time.
+        <p className="error">
+          Mobile mode is using the smaller Llama 1B model. It may take a little
+          while the first time.
         </p>
       )}
 
@@ -1134,7 +1184,7 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
                       onClick={() => checkAnswerWithAI(userAnswer)}
                       disabled={checkingAnswer}
                     >
-                      {checkingAnswer ? "Checking..." : "Check with AI"}
+                      {checkingAnswer ? "Checking..." : "Check Answer"}
                     </button>
                   </>
                 ) : (
