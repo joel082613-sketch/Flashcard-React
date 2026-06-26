@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react"
-import * as webllm from "@mlc-ai/web-llm"
 import supabase from "./supabase"
 import "./App.css"
 
@@ -43,6 +42,7 @@ function App() {
   const [checkingAnswer, setCheckingAnswer] = useState(false)
   const [isShuffling, setIsShuffling] = useState(false)
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   const engineRef = useRef(null)
   const notesRef = useRef(null)
@@ -69,19 +69,38 @@ function App() {
     resizeNotesBox()
   }, [notes])
 
+  useEffect(() => {
+    function checkMobile() {
+      setIsMobile(isMobileDevice())
+    }
+
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  useEffect(() => {
+    if (isMobile) {
+      setQuizMode(false)
+    }
+  }, [isMobile])
+
   async function getEngine() {
     if (isMobileDevice()) {
       throw new Error(
-        "Mobile does not have the capability to run AI. Please use a laptop or desktop."
+        "Mobile Safari cannot safely run the AI model. Please use a laptop or desktop."
       )
     }
 
     if (engineRef.current) return engineRef.current
 
+    const webllm = await import("@mlc-ai/web-llm")
+
     const engine = await webllm.CreateMLCEngine(DESKTOP_MODEL, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading model... ${pct}%`)
+        setLoadingMessage(`Downloading desktop model... ${pct}%`)
       }
     })
 
@@ -93,7 +112,7 @@ function App() {
     if (isMobileDevice()) {
       setAiCorrect(false)
       setAiFeedback(
-        "AI checking is disabled on mobile because loading the browser AI model can crash."
+        "AI checking is disabled on mobile because loading the browser AI model can crash Safari."
       )
       setQuizResult(shuffledCards[quizIndex]?.answer || "")
       return
@@ -405,7 +424,7 @@ Grade the student answer.`
   async function generateFlashcards() {
     if (isMobileDevice()) {
       setError(
-        "Mobile cannot safely run the AI model without crashing. Please generate flashcards on a laptop or desktop."
+        "Mobile Safari cannot safely run the AI model without crashing. Please generate flashcards on a laptop or desktop."
       )
       return
     }
@@ -658,6 +677,8 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
   }
 
   function startQuiz() {
+    if (isMobile) return
+
     const shuffled = [...cards].sort(() => Math.random() - 0.5)
 
     setShuffledCards(shuffled)
@@ -774,9 +795,9 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
-      {isMobileDevice() && (
+      {isMobile && (
         <p className="error">
-          Mobile AI generation is disabled to prevent from crashing. Use a
+          Mobile AI generation is disabled to prevent Safari from crashing. Use a
           laptop or desktop to generate new flashcards.
         </p>
       )}
@@ -892,7 +913,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         type="button"
         className="generate-btn"
         onClick={generateFlashcards}
-        disabled={loading || isMobileDevice()}
+        disabled={loading || isMobile}
       >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
@@ -963,18 +984,20 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             </button>
           </div>
 
-          {!isMobileDevice() && (
-  <button
-    type="button"
-    className="quiz-btn"
-    onClick={startQuiz}
-    disabled={isShuffling || isSwitchingCard}
-  >
-    ✏️ Try it yourself
-  </button>
-)}
+          {!isMobile && (
+            <button
+              type="button"
+              className="quiz-btn"
+              onClick={startQuiz}
+              disabled={isShuffling || isSwitchingCard}
+            >
+              ✏️ Try it yourself
+            </button>
+          )}
+        </div>
+      )}
 
-      {quizMode && (
+      {quizMode && !isMobile && (
         <div className="quiz-overlay">
           <div className="quiz-box">
             {quizFinished ? (
