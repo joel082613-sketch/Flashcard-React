@@ -1252,3 +1252,9 @@ button:disabled {
     margin: 6px auto;
   }
 }
+
+@media (max-width: 768px) {
+  .quiz-btn {
+    display: none !important;
+  }
+}

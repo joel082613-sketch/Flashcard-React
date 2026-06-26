@@ -5,6 +5,8 @@ import "./App.css"
 const DESKTOP_MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
 
 function isMobileDevice() {
+  if (typeof window === "undefined") return false
+
   return (
     window.innerWidth <= 768 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
@@ -18,15 +20,18 @@ function App() {
   const [loginError, setLoginError] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
+
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
   const [slowLoad, setSlowLoad] = useState(false)
   const [error, setError] = useState("")
+
   const [cards, setCards] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [cardCount, setCardCount] = useState("8")
+
   const [quizMode, setQuizMode] = useState(false)
   const [userAnswer, setUserAnswer] = useState("")
   const [quizIndex, setQuizIndex] = useState(0)
@@ -34,15 +39,18 @@ function App() {
   const [quizScore, setQuizScore] = useState({ correct: 0, total: 0 })
   const [quizFinished, setQuizFinished] = useState(false)
   const [shuffledCards, setShuffledCards] = useState([])
+
   const [savedDecks, setSavedDecks] = useState([])
   const [selectedDeckIds, setSelectedDeckIds] = useState({})
   const [activeDeckName, setActiveDeckName] = useState("")
+
   const [aiFeedback, setAiFeedback] = useState("")
   const [aiCorrect, setAiCorrect] = useState(null)
   const [checkingAnswer, setCheckingAnswer] = useState(false)
+
   const [isShuffling, setIsShuffling] = useState(false)
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => isMobileDevice())
 
   const engineRef = useRef(null)
   const notesRef = useRef(null)
@@ -50,6 +58,8 @@ function App() {
   const cleanFirstName = firstName.trim().toLowerCase()
   const cleanNumberId = numberId.trim()
   const userKey = `${cleanFirstName}-${cleanNumberId}`
+
+  const hideMobileOnlyFeatures = isMobile || isMobileDevice()
 
   function resizeNotesBox() {
     const box = notesRef.current
@@ -76,15 +86,19 @@ function App() {
 
     checkMobile()
     window.addEventListener("resize", checkMobile)
+    window.addEventListener("orientationchange", checkMobile)
 
-    return () => window.removeEventListener("resize", checkMobile)
+    return () => {
+      window.removeEventListener("resize", checkMobile)
+      window.removeEventListener("orientationchange", checkMobile)
+    }
   }, [])
 
   useEffect(() => {
-    if (isMobile) {
+    if (hideMobileOnlyFeatures) {
       setQuizMode(false)
     }
-  }, [isMobile])
+  }, [hideMobileOnlyFeatures])
 
   async function getEngine() {
     if (isMobileDevice()) {
@@ -192,6 +206,7 @@ Grade the student answer.`
       }))
     } catch (err) {
       console.error(err)
+
       setAiCorrect(false)
       setAiFeedback("Something went wrong while checking your answer.")
       setQuizResult(shuffledCards[quizIndex]?.answer || "")
@@ -488,7 +503,9 @@ Grade the student answer.`
       while (allCards.length < needed && attempts < 3) {
         const remaining = needed - allCards.length
 
-        setLoadingMessage(`Generating flashcards... (${allCards.length}/${needed})`)
+        setLoadingMessage(
+          `Generating flashcards... (${allCards.length}/${needed})`
+        )
 
         const reply = await engine.chat.completions.create({
           messages: [
@@ -667,7 +684,10 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
-        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+
+        const temp = shuffled[i]
+        shuffled[i] = shuffled[j]
+        shuffled[j] = temp
       }
 
       setCards(shuffled)
@@ -677,7 +697,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
   }
 
   function startQuiz() {
-    if (isMobile) return
+    if (hideMobileOnlyFeatures) return
 
     const shuffled = [...cards].sort(() => Math.random() - 0.5)
 
@@ -730,7 +750,11 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             placeholder="Number ID..."
             value={numberId}
             onChange={(e) => setNumberId(e.target.value.replace(/\D/g, ""))}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleLogin()
+              }
+            }}
           />
 
           {loginError && <p className="login-error">{loginError}</p>}
@@ -795,7 +819,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
-      {isMobile && (
+      {hideMobileOnlyFeatures && (
         <p className="error">
           Mobile AI generation is disabled to prevent Safari from crashing. Use a
           laptop or desktop to generate new flashcards.
@@ -812,8 +836,9 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                 selectedDeckIds[group.key] || String(group.decks[0].id)
 
               const selectedDeck =
-                group.decks.find((deck) => String(deck.id) === String(selectedId)) ||
-                group.decks[0]
+                group.decks.find(
+                  (deck) => String(deck.id) === String(selectedId)
+                ) || group.decks[0]
 
               return (
                 <div className="deck-group" key={group.key}>
@@ -913,7 +938,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         type="button"
         className="generate-btn"
         onClick={generateFlashcards}
-        disabled={loading || isMobile}
+        disabled={loading || hideMobileOnlyFeatures}
       >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
@@ -932,9 +957,11 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             className={`card ${flipped ? "flipped" : ""} ${
               isShuffling ? "shuffle-animation" : ""
             }`}
-            onClick={() =>
-              !isShuffling && !isSwitchingCard && setFlipped(!flipped)
-            }
+            onClick={() => {
+              if (!isShuffling && !isSwitchingCard) {
+                setFlipped(!flipped)
+              }
+            }}
           >
             <div className="card-inner">
               <div className="card-front">
@@ -984,7 +1011,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             </button>
           </div>
 
-          {!isMobile && (
+          {!hideMobileOnlyFeatures && (
             <button
               type="button"
               className="quiz-btn"
@@ -997,7 +1024,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         </div>
       )}
 
-      {quizMode && !isMobile && (
+      {quizMode && !hideMobileOnlyFeatures && (
         <div className="quiz-overlay">
           <div className="quiz-box">
             {quizFinished ? (
@@ -1006,8 +1033,8 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
                   {quizScore.correct === shuffledCards.length
                     ? "🎉"
                     : quizScore.correct >= shuffledCards.length / 2
-                    ? "👍"
-                    : "📖"}
+                      ? "👍"
+                      : "📖"}
                 </p>
 
                 <p className="quiz-finished-title">Quiz Complete!</p>
