@@ -81,7 +81,7 @@ function App() {
     const engine = await webllm.CreateMLCEngine(DESKTOP_MODEL, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading desktop model... ${pct}%`)
+        setLoadingMessage(`Downloading model... ${pct}%`)
       }
     })
 
