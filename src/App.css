@@ -1253,8 +1253,3 @@ button:disabled {
   }
 }
 
-@media (max-width: 768px) {
-  .quiz-btn {
-    display: none !important;
-  }
-}

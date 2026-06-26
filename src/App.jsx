@@ -3,6 +3,7 @@ import supabase from "./supabase"
 import "./App.css"
 
 const DESKTOP_MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
+const MOBILE_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC"
 
 function isMobileDevice() {
   if (typeof window === "undefined") return false
@@ -11,6 +12,10 @@ function isMobileDevice() {
     window.innerWidth <= 768 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   )
+}
+
+function getBestModel() {
+  return isMobileDevice() ? MOBILE_MODEL : DESKTOP_MODEL
 }
 
 function App() {
@@ -53,20 +58,19 @@ function App() {
   const [isMobile, setIsMobile] = useState(() => isMobileDevice())
 
   const engineRef = useRef(null)
+  const modelRef = useRef(null)
   const notesRef = useRef(null)
 
   const cleanFirstName = firstName.trim().toLowerCase()
   const cleanNumberId = numberId.trim()
   const userKey = `${cleanFirstName}-${cleanNumberId}`
-
-  const hideMobileOnlyFeatures = isMobile || isMobileDevice()
+  const isOnMobile = isMobile || isMobileDevice()
 
   function resizeNotesBox() {
     const box = notesRef.current
     if (!box) return
 
     const maxHeight = 360
-
     box.style.height = "auto"
 
     const newHeight = Math.min(box.scrollHeight, maxHeight)
@@ -94,27 +98,27 @@ function App() {
     }
   }, [])
 
-  useEffect(() => {
-    if (hideMobileOnlyFeatures) {
-      setQuizMode(false)
-    }
-  }, [hideMobileOnlyFeatures])
-
   async function getEngine() {
-    if (isMobileDevice()) {
-      throw new Error(
-        "Mobile Safari cannot safely run the AI model. Please use a laptop or desktop."
-      )
+    const selectedModel = getBestModel()
+
+    if (engineRef.current && modelRef.current === selectedModel) {
+      return engineRef.current
     }
 
-    if (engineRef.current) return engineRef.current
+    engineRef.current = null
+    modelRef.current = selectedModel
 
     const webllm = await import("@mlc-ai/web-llm")
 
-    const engine = await webllm.CreateMLCEngine(DESKTOP_MODEL, {
+    const engine = await webllm.CreateMLCEngine(selectedModel, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading desktop model... ${pct}%`)
+
+        setLoadingMessage(
+          `Downloading ${
+            isMobileDevice() ? "mobile Llama 1B" : "desktop Mistral 7B"
+          } model... ${pct}%`
+        )
       }
     })
 
@@ -123,15 +127,6 @@ function App() {
   }
 
   async function checkAnswerWithAI(answerOverride = null) {
-    if (isMobileDevice()) {
-      setAiCorrect(false)
-      setAiFeedback(
-        "AI checking is disabled on mobile because loading the browser AI model can crash Safari."
-      )
-      setQuizResult(shuffledCards[quizIndex]?.answer || "")
-      return
-    }
-
     const answerToCheck = (answerOverride ?? userAnswer).trim()
 
     if (!answerToCheck) return
@@ -437,13 +432,6 @@ Grade the student answer.`
   }
 
   async function generateFlashcards() {
-    if (isMobileDevice()) {
-      setError(
-        "Mobile Safari cannot safely run the AI model without crashing. Please generate flashcards on a laptop or desktop."
-      )
-      return
-    }
-
     if (!notes.trim()) {
       setError("Please paste some notes first!")
       return
@@ -522,7 +510,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             }
           ],
           temperature: 0.7,
-          max_tokens: 2000
+          max_tokens: isMobileDevice() ? 1200 : 2000
         })
 
         const text = reply.choices[0].message.content
@@ -697,8 +685,6 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
   }
 
   function startQuiz() {
-    if (hideMobileOnlyFeatures) return
-
     const shuffled = [...cards].sort(() => Math.random() - 0.5)
 
     setShuffledCards(shuffled)
@@ -819,10 +805,10 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
-      {hideMobileOnlyFeatures && (
+      {isOnMobile && (
         <p className="error">
-          Mobile AI generation is disabled to prevent Safari from crashing. Use a
-          laptop or desktop to generate new flashcards.
+          Mobile mode is using the smaller Llama 1B model. It may take a little
+          while the first time.
         </p>
       )}
 
@@ -938,7 +924,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         type="button"
         className="generate-btn"
         onClick={generateFlashcards}
-        disabled={loading || hideMobileOnlyFeatures}
+        disabled={loading}
       >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
@@ -1011,20 +997,18 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
             </button>
           </div>
 
-          {!hideMobileOnlyFeatures && (
-            <button
-              type="button"
-              className="quiz-btn"
-              onClick={startQuiz}
-              disabled={isShuffling || isSwitchingCard}
-            >
-              ✏️ Try it yourself
-            </button>
-          )}
+          <button
+            type="button"
+            className="quiz-btn"
+            onClick={startQuiz}
+            disabled={isShuffling || isSwitchingCard}
+          >
+            ✏️ Try it yourself
+          </button>
         </div>
       )}
 
-      {quizMode && !hideMobileOnlyFeatures && (
+      {quizMode && (
         <div className="quiz-overlay">
           <div className="quiz-box">
             {quizFinished ? (
