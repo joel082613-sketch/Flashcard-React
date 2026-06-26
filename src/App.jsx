@@ -145,7 +145,6 @@ function App() {
 
     try {
       await getEngine()
-
       setModelReady(true)
       setLoadingMessage("AI model ready!")
     } catch (err) {
@@ -173,53 +172,10 @@ function App() {
 
     const currentCard = shuffledCards[quizIndex]
 
-    function simpleFallbackGrade() {
-      const student = answerToCheck.toLowerCase()
-      const correct = currentCard.answer.toLowerCase()
-      const question = currentCard.question.toLowerCase()
-
-      const importantWords = correct
-        .replace(/[^\w\s]/g, "")
-        .split(/\s+/)
-        .filter((word) => word.length > 4)
-
-      const matchedWords = importantWords.filter((word) =>
-        student.includes(word)
-      )
-
-      const mentionsNewtonLaw =
-        student.includes("newton") &&
-        (student.includes("first") ||
-          student.includes("second") ||
-          student.includes("third") ||
-          student.includes("law"))
-
-      const asksNewtonLaw =
-        question.includes("newton") ||
-        question.includes("law") ||
-        correct.includes("newton")
-
-      const fallbackCorrect =
-        matchedWords.length >= 2 || (asksNewtonLaw && mentionsNewtonLaw)
-
-      setAiCorrect(fallbackCorrect)
-      setAiFeedback(
-        fallbackCorrect
-          ? "Your answer seems to include the main idea."
-          : "Your answer may be missing the main idea. Compare it with the correct answer below."
-      )
-      setQuizResult(currentCard.answer)
-
-      setQuizScore((score) => ({
-        correct: score.correct + (fallbackCorrect ? 1 : 0),
-        total: score.total + 1
-      }))
-    }
-
     try {
       if (isMobileDevice()) {
         setLoadingMessage("Waiting before checking answer...")
-        await sleep(1500)
+        await sleep(1200)
       }
 
       const engine = await getEngine()
@@ -228,15 +184,20 @@ function App() {
         messages: [
           {
             role: "system",
-            content: `You are a flashcard quiz grader.
+            content: `You are a strict flashcard quiz grader.
 
-Return ONLY this JSON format:
-{"correct": true, "feedback": "short feedback"}
+Return ONLY valid JSON like this:
+{"correct": false, "feedback": "short feedback"}
 
-Grade by meaning, not exact wording.
-If the student answer means the same thing, mark correct true.
-Ignore small spelling mistakes.
-If the answer is missing the main idea, mark correct false.`
+Rules:
+- Grade by meaning, not exact wording.
+- Mark correct true ONLY if the student answer clearly has the same main idea as the correct answer.
+- If the student only writes a related word, mark false.
+- If the student answer is too vague, mark false.
+- If the student answer says a different law, term, or concept, mark false.
+- Ignore small spelling mistakes.
+- Feedback must be one short sentence.
+- Return only JSON.`
           },
           {
             role: "user",
@@ -246,7 +207,7 @@ Correct answer: ${currentCard.answer}
 
 Student answer: ${answerToCheck}
 
-Return only JSON.`
+Is the student answer correct? Return only JSON.`
           }
         ],
         temperature: 0,
@@ -268,16 +229,22 @@ Return only JSON.`
       try {
         result = JSON.parse(text)
       } catch {
-        simpleFallbackGrade()
-        setCheckingAnswer(false)
-        setLoadingMessage("")
-        return
+        result = {
+          correct: false,
+          feedback:
+            "I could not grade it clearly, so compare your answer with the correct answer below."
+        }
       }
 
       const isCorrect = result.correct === true
 
       setAiCorrect(isCorrect)
-      setAiFeedback(result.feedback || "No feedback given.")
+      setAiFeedback(
+        result.feedback ||
+          (isCorrect
+            ? "Your answer has the main idea."
+            : "Your answer is missing the main idea.")
+      )
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -286,7 +253,17 @@ Return only JSON.`
       }))
     } catch (err) {
       console.error("AI grading failed:", err)
-      simpleFallbackGrade()
+
+      setAiCorrect(false)
+      setAiFeedback(
+        "I could not check it with AI. Compare your answer with the correct answer below."
+      )
+      setQuizResult(currentCard.answer)
+
+      setQuizScore((score) => ({
+        correct: score.correct,
+        total: score.total + 1
+      }))
     }
 
     setCheckingAnswer(false)
