@@ -186,31 +186,6 @@ Grade the student answer strictly.`
       })
 
       let text = reply.choices[0].message.content.trim()
-      text = text.replace(/```json/g, "").replace(/```/g, "").trim()
-
-      let result
-
-      try {
-        result = JSON.parse(text)
-      } catch {
-        const lowerText = text.toLowerCase()
-
-        let fallbackCorrect = false
-
-        if (
-          lowerText.includes('"correct": true') ||
-          lowerText.includes("correct: true")
-        ) {
-          fallbackCorrect = true
-        }
-
-        result = {
-          correct: fallbackCorrect,
-          feedback: fallbackCorrect
-            ? "Your answer includes the main idea."
-            : "Your answer is missing the main idea. Compare it with the correct answer below."
-        }
-      }
 
       const isCorrect = result.correct === true
 
@@ -866,9 +841,8 @@ Example: [{"question": "What is X?", "answer": "X is..."}]`
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
       {isOnMobile && (
-        <p className="error">
-          Mobile mode is using the smaller Llama 1B model. It may take a little
-          while the first time.
+        <p className="error">let text = reply.choices[0].message.content.trim()
+          Mobile mode is using the smaller Llama 1B model. It may crash the first time.
         </p>
       )}
 
