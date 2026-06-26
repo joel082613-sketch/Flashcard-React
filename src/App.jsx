@@ -66,6 +66,10 @@ function App() {
   const userKey = `${cleanFirstName}-${cleanNumberId}`
   const isOnMobile = isMobile || isMobileDevice()
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
   function resizeNotesBox() {
     const box = notesRef.current
     if (!box) return
@@ -138,6 +142,11 @@ function App() {
     setAiCorrect(null)
 
     try {
+      if (isMobileDevice()) {
+        setLoadingMessage("Waiting before checking answer...")
+        await sleep(1200)
+      }
+
       const engine = await getEngine()
       const currentCard = shuffledCards[quizIndex]
 
@@ -171,7 +180,7 @@ Grade the student answer.`
           }
         ],
         temperature: 0.2,
-        max_tokens: 250
+        max_tokens: isMobileDevice() ? 150 : 250
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -213,6 +222,7 @@ Grade the student answer.`
     }
 
     setCheckingAnswer(false)
+    setLoadingMessage("")
   }
 
   async function handleLogin() {
@@ -327,7 +337,7 @@ Grade the student answer.`
         }
       ],
       temperature: 0.3,
-      max_tokens: 30
+      max_tokens: isMobileDevice() ? 18 : 30
     })
 
     let title = reply.choices[0].message.content.trim()
@@ -389,7 +399,21 @@ Grade the student answer.`
 
   async function saveDeck(notesText, generatedCards, count) {
     const notesHash = makeNotesHash(notesText)
+
+    if (isMobileDevice()) {
+      setLoadingMessage("Waiting before generating deck title...")
+      await sleep(2500)
+    }
+
+    setLoadingMessage("Generating deck title...")
     const name = await generateDeckTitle(notesText)
+
+    if (isMobileDevice()) {
+      setLoadingMessage("Waiting before saving deck...")
+      await sleep(1500)
+    }
+
+    setLoadingMessage("Saving deck...")
 
     const { error } = await supabase.from("decks").insert([
       {
@@ -409,7 +433,12 @@ Grade the student answer.`
     }
 
     setActiveDeckName(name)
-    loadSavedDecks(userKey)
+
+    if (isMobileDevice()) {
+      await sleep(1000)
+    }
+
+    await loadSavedDecks(userKey)
   }
 
   async function checkExistingDeck(notesText, count) {
@@ -448,7 +477,9 @@ Grade the student answer.`
     setIsShuffling(false)
     setIsSwitchingCard(false)
 
-    const needed = parseInt(cardCount) || 8
+    const requested = parseInt(cardCount) || 8
+    const needed = isMobileDevice() ? Math.min(requested, 5) : requested
+
     const existing = await checkExistingDeck(notes, needed)
 
     if (existing) {
@@ -491,6 +522,11 @@ Grade the student answer.`
       while (allCards.length < needed && attempts < 3) {
         const remaining = needed - allCards.length
 
+        if (isMobileDevice() && attempts > 0) {
+          setLoadingMessage("Waiting before continuing generation...")
+          await sleep(1500)
+        }
+
         setLoadingMessage(
           `Generating flashcards... (${allCards.length}/${needed})`
         )
@@ -501,8 +537,9 @@ Grade the student answer.`
               role: "system",
               content: `You are a flashcard generator. Return ONLY a JSON array with no extra text.
 Each item must have a "question" and "answer" field.
-Make answers detailed and thorough, at least 2-3 sentences each.
-Example: [{"question": "What is X?", "answer": "X is... It works by... This is important because..."}]`
+Make answers clear, helpful, and not too long.
+On mobile, keep answers short, about 1 sentence each.
+Example: [{"question": "What is X?", "answer": "X is..."}]`
             },
             {
               role: "user",
@@ -526,16 +563,25 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         throw new Error("Could not generate flashcards")
       }
 
+      clearTimeout(slowTimer)
+      setSlowLoad(false)
+
+      setLoadingMessage("Preparing flashcards...")
+      await sleep(isMobileDevice() ? 1200 : 300)
+
       setCards(finalCards)
       setCurrentIndex(0)
       setFlipped(false)
 
-      clearTimeout(slowTimer)
-      setSlowLoad(false)
-      setLoading(false)
-      setLoadingMessage("")
+      setLoadingMessage("Waiting before saving...")
+      await sleep(isMobileDevice() ? 1500 : 300)
 
       await saveDeck(notes, finalCards, needed)
+
+      await sleep(isMobileDevice() ? 800 : 100)
+
+      setLoading(false)
+      setLoadingMessage("")
     } catch (err) {
       console.error(err)
       setError("Something went wrong: " + err.message)
