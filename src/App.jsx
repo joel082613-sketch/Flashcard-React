@@ -4,7 +4,7 @@ import supabase from "./supabase"
 import "./App.css"
 
 const DESKTOP_MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
-const MOBILE_MODEL = "Llama-3.2-3B-Instruct-q4f16_1-MLC"
+const MOBILE_MODEL = "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"
 
 function isMobileDevice() {
   return (
@@ -91,7 +91,7 @@ function App() {
 
         setLoadingMessage(
           `Downloading ${
-            isMobileDevice() ? "mobile 3B" : "desktop"
+            isMobileDevice() ? "mobile" : "desktop"
           } model... ${pct}%`
         )
       }
