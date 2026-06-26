@@ -776,7 +776,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       {isMobileDevice() && (
         <p className="error">
-          Mobile AI generation is disabled to prevent Safari from crashing. Use a
+          Mobile AI generation is disabled to prevent from crashing. Use a
           laptop or desktop to generate new flashcards.
         </p>
       )}
