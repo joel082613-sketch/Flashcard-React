@@ -3,7 +3,19 @@ import * as webllm from "@mlc-ai/web-llm"
 import supabase from "./supabase"
 import "./App.css"
 
-const MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
+const DESKTOP_MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
+const MOBILE_MODEL = "Llama-3.2-3B-Instruct-q4f16_1-MLC"
+
+function isMobileDevice() {
+  return (
+    window.innerWidth <= 768 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  )
+}
+
+function getBestModel() {
+  return isMobileDevice() ? MOBILE_MODEL : DESKTOP_MODEL
+}
 
 function App() {
   const [firstName, setFirstName] = useState("")
@@ -38,6 +50,7 @@ function App() {
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
 
   const engineRef = useRef(null)
+  const modelRef = useRef(null)
   const notesRef = useRef(null)
 
   const cleanFirstName = firstName.trim().toLowerCase()
@@ -63,12 +76,24 @@ function App() {
   }, [notes])
 
   async function getEngine() {
-    if (engineRef.current) return engineRef.current
+    const selectedModel = getBestModel()
 
-    const engine = await webllm.CreateMLCEngine(MODEL, {
+    if (engineRef.current && modelRef.current === selectedModel) {
+      return engineRef.current
+    }
+
+    engineRef.current = null
+    modelRef.current = selectedModel
+
+    const engine = await webllm.CreateMLCEngine(selectedModel, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-        setLoadingMessage(`Downloading model... ${pct}%`)
+
+        setLoadingMessage(
+          `Downloading ${
+            isMobileDevice() ? "mobile 3B" : "desktop"
+          } model... ${pct}%`
+        )
       }
     })
 
@@ -596,7 +621,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
       })
 
       setIsSwitchingCard(false)
-    }, 195)
+    }, 180)
   }
 
   function handlePrev() {
