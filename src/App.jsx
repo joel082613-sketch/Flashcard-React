@@ -4,17 +4,12 @@ import supabase from "./supabase"
 import "./App.css"
 
 const DESKTOP_MODEL = "Mistral-7B-Instruct-v0.3-q4f16_1-MLC"
-const MOBILE_MODEL = "Llama-3.2-1B-Instruct-q4f16_1-MLC"
 
 function isMobileDevice() {
   return (
     window.innerWidth <= 768 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   )
-}
-
-function getBestModel() {
-  return isMobileDevice() ? MOBILE_MODEL : DESKTOP_MODEL
 }
 
 function App() {
@@ -50,7 +45,6 @@ function App() {
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
 
   const engineRef = useRef(null)
-  const modelRef = useRef(null)
   const notesRef = useRef(null)
 
   const cleanFirstName = firstName.trim().toLowerCase()
@@ -76,24 +70,18 @@ function App() {
   }, [notes])
 
   async function getEngine() {
-    const selectedModel = getBestModel()
-
-    if (engineRef.current && modelRef.current === selectedModel) {
-      return engineRef.current
+    if (isMobileDevice()) {
+      throw new Error(
+        "Mobile does not have the capability to run AI. Please use a laptop or desktop."
+      )
     }
 
-    engineRef.current = null
-    modelRef.current = selectedModel
+    if (engineRef.current) return engineRef.current
 
-    const engine = await webllm.CreateMLCEngine(selectedModel, {
+    const engine = await webllm.CreateMLCEngine(DESKTOP_MODEL, {
       initProgressCallback: (progress) => {
         const pct = Math.round(progress.progress * 100)
-
-        setLoadingMessage(
-          `Downloading ${
-            isMobileDevice() ? "mobile" : "desktop"
-          } model... ${pct}%`
-        )
+        setLoadingMessage(`Downloading desktop model... ${pct}%`)
       }
     })
 
@@ -102,6 +90,15 @@ function App() {
   }
 
   async function checkAnswerWithAI(answerOverride = null) {
+    if (isMobileDevice()) {
+      setAiCorrect(false)
+      setAiFeedback(
+        "AI checking is disabled on mobile because loading the browser AI model can crash."
+      )
+      setQuizResult(shuffledCards[quizIndex]?.answer || "")
+      return
+    }
+
     const answerToCheck = (answerOverride ?? userAnswer).trim()
 
     if (!answerToCheck) return
@@ -406,6 +403,13 @@ Grade the student answer.`
   }
 
   async function generateFlashcards() {
+    if (isMobileDevice()) {
+      setError(
+        "Mobile cannot safely run the AI model without crashing. Please generate flashcards on a laptop or desktop."
+      )
+      return
+    }
+
     if (!notes.trim()) {
       setError("Please paste some notes first!")
       return
@@ -770,6 +774,13 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
 
       <p>Paste your notes below and AI will turn them into flashcards</p>
 
+      {isMobileDevice() && (
+        <p className="error">
+          Mobile AI generation is disabled to prevent Safari from crashing. Use a
+          laptop or desktop to generate new flashcards.
+        </p>
+      )}
+
       {savedDecks.length > 0 && (
         <div className="saved-decks">
           <p className="saved-label">Your saved decks:</p>
@@ -881,7 +892,7 @@ Example: [{"question": "What is X?", "answer": "X is... It works by... This is i
         type="button"
         className="generate-btn"
         onClick={generateFlashcards}
-        disabled={loading}
+        disabled={loading || isMobileDevice()}
       >
         {loading ? "Loading..." : "Generate Flashcards"}
       </button>
