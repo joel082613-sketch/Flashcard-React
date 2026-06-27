@@ -231,7 +231,7 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
           }
         ],
         temperature: isMobileDevice() ? 0.1 : 0,
-        max_tokens: isMobileDevice() ? 60 : 300
+        max_tokens: isMobileDevice() ? 40 : 300
       })
 
       let text = reply.choices[0].message.content.trim()
