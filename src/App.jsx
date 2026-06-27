@@ -127,7 +127,7 @@ function App() {
 
         setLoadingMessage(
           `Downloading ${
-            isMobileDevice() ? "mobile" : "desktop"
+            isMobileDevice() ? "mobile Llama 1B" : "desktop Mistral 7B"
           } model... ${pct}%`
         )
       }
@@ -187,37 +187,26 @@ function App() {
         messages: [
           {
             role: "system",
-            content: isMobileDevice()
-              ? `Grade the student answer. Return only JSON: {"correct": true, "feedback": "one sentence", "explanation": "one sentence explaining why if wrong, empty string if correct"}
-Mark correct: true if the student answer has the same main idea as the correct answer.
-Mark correct: false only if completely wrong or totally different topic.
-Be generous. Short answers are fine if they are on topic.`
-              : `You are a fair flashcard quiz grader.
+            content: `You are a strict but fair flashcard quiz grader.
 
-Return ONLY valid JSON like this:
-{"correct": false, "feedback": "short feedback", "explanation": "explanation of why wrong and what the correct answer means"}
+Return ONLY valid JSON in this exact format:
+{"correct": false, "feedback": "short feedback", "explanation": "short explanation"}
 
-Rules:
-- Grade by meaning, not exact wording.
-- Mark correct true if the student answer gives the same main idea.
-- A formula and the words that describe the formula mean the same thing.
-- Example: "F = ma" and "force equals mass times acceleration" are both correct.
-- Example: "Newton's Second Law says force depends on mass and acceleration" is correct.
-- Example: "mass times acceleration" can be correct for Newton's Second Law.
-- The student does NOT need every detail from the correct answer.
-- Short answers can be correct if they clearly answer the question.
-- Mark false only if the answer is wrong, a different law, missing the main idea, or too vague.
-- Ignore small spelling and grammar mistakes.
-- Feedback must be one short sentence.
-- If correct is false, explanation must be 2-3 sentences explaining what was wrong and what the correct answer actually means.
-- If correct is true, explanation must be an empty string.
+Grading rules:
+- Mark correct true ONLY if the student's answer matches the correct answer's main idea.
+- Do NOT mark vague answers correct.
+- Do NOT mark random, unrelated, or empty answers correct.
+- Do NOT mark an answer correct just because it has one similar word.
+- Short answers are okay ONLY if they clearly mean the same thing.
+- If the student gives a different law, person, definition, event, or idea, mark false.
+- If the question asks for a formula, the formula or a clear word version of it can be correct.
+- If wrong, explain what was missing or incorrect.
+- If correct, explanation should be an empty string.
 - Return only JSON.`
           },
           {
             role: "user",
-            content: isMobileDevice()
-              ? `Question: ${currentCard.question}\nCorrect: ${currentCard.answer}\nStudent: ${answerToCheck}\nJSON:`
-              : `Question: ${currentCard.question}
+            content: `Question: ${currentCard.question}
 
 Correct answer: ${currentCard.answer}
 
@@ -227,7 +216,7 @@ Is the student answer correct? Return only JSON.`
           }
         ],
         temperature: 0,
-        max_tokens: isMobileDevice() ? 80 : 350
+        max_tokens: isMobileDevice() ? 160 : 300
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -247,9 +236,61 @@ Is the student answer correct? Return only JSON.`
       } catch {
         result = {
           correct: false,
-          feedback:
-            "I could not grade it clearly, so compare your answer with the correct answer below."
+          feedback: "Not quite.",
+          explanation: `The correct answer is: ${currentCard.answer}`
         }
+      }
+
+      const studentClean = answerToCheck.trim().toLowerCase()
+      const correctClean = String(currentCard.answer || "").trim().toLowerCase()
+
+      const badAnswers = [
+        "idk",
+        "i dont know",
+        "i don't know",
+        "random",
+        "yes",
+        "no",
+        "maybe",
+        "ok",
+        "okay",
+        "what",
+        "nothing",
+        "none"
+      ]
+
+      const tooShort = studentClean.length < 2 || badAnswers.includes(studentClean)
+
+      const correctWords = correctClean
+        .split(/[^a-z0-9=+\-*/^]+/i)
+        .filter((word) => word.length > 3)
+
+      const sharedWords = correctWords.filter((word) => studentClean.includes(word))
+
+      const exactOrContains =
+        studentClean === correctClean ||
+        correctClean.includes(studentClean) ||
+        studentClean.includes(correctClean)
+
+      const formulaMatch =
+        correctClean.includes("f = ma") &&
+        ["f=ma", "f = ma", "force equals mass times acceleration", "mass times acceleration"].some(
+          (phrase) => studentClean.includes(phrase)
+        )
+
+      const noSharedMeaning =
+        !exactOrContains && !formulaMatch && correctWords.length > 0 && sharedWords.length === 0
+
+      if (tooShort) {
+        result.correct = false
+        result.feedback = "Not quite."
+        result.explanation = "Your answer is too short or does not explain the correct idea."
+      }
+
+      if (result.correct === true && noSharedMeaning) {
+        result.correct = false
+        result.feedback = "Not quite."
+        result.explanation = "Your answer does not match the main idea of the correct answer."
       }
 
       const isCorrect = result.correct === true
@@ -261,7 +302,7 @@ Is the student answer correct? Return only JSON.`
             ? "Your answer has the main idea."
             : "Your answer is missing the main idea.")
       )
-      setAiExplanation(isCorrect ? "" : (result.explanation || ""))
+      setAiExplanation(isCorrect ? "" : (result.explanation || `The correct answer is: ${currentCard.answer}`))
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -272,10 +313,8 @@ Is the student answer correct? Return only JSON.`
       console.error("AI grading failed:", err)
 
       setAiCorrect(false)
-      setAiFeedback(
-        "I could not check it with AI. Compare your answer with the correct answer below."
-      )
-      setAiExplanation("")
+      setAiFeedback("Not quite.")
+      setAiExplanation(`The correct answer is: ${currentCard.answer}`)
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -890,10 +929,10 @@ Example:
             className="pin-input"
             id="password"
             name="password"
-            type="text"
+            type="password"
             inputMode="numeric"
             pattern="[0-9]*"
-            placeholder="Number ID..."
+            placeholder="Password / Number ID..."
             value={numberId}
             onChange={(e) => setNumberId(e.target.value.replace(/\D/g, ""))}
             autoComplete="current-password"
