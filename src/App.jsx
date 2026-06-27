@@ -56,6 +56,7 @@ function App() {
 
   const [isShuffling, setIsShuffling] = useState(false)
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
+  const [isLoadingDeck, setIsLoadingDeck] = useState(false)
   const [isMobile, setIsMobile] = useState(() => isMobileDevice())
 
   const [modelReady, setModelReady] = useState(false)
@@ -126,7 +127,7 @@ function App() {
 
         setLoadingMessage(
           `Downloading ${
-            isMobileDevice() ? "mobile Llama 1B" : "desktop Mistral 7B"
+            isMobileDevice() ? "mobile" : "desktop"
           } model... ${pct}%`
         )
       }
@@ -419,12 +420,10 @@ Is the student answer correct? Return only JSON.`
   }
 
   function loadDeck(deck) {
-    setNotes(deck.notes)
-    setCards(deck.cards)
-    setCardCount(String(getDeckCount(deck) || 8))
-    setCurrentIndex(0)
+    if (isLoadingDeck) return
+
+    setIsLoadingDeck(true)
     setFlipped(false)
-    setActiveDeckName(deck.name || "Untitled Deck")
     setQuizMode(false)
     setQuizFinished(false)
     setUserAnswer("")
@@ -434,6 +433,18 @@ Is the student answer correct? Return only JSON.`
     setAiExplanation("")
     setIsShuffling(false)
     setIsSwitchingCard(false)
+
+    setTimeout(() => {
+      setNotes(deck.notes)
+      setCards(deck.cards)
+      setCardCount(String(getDeckCount(deck) || 8))
+      setCurrentIndex(0)
+      setActiveDeckName(deck.name || "Untitled Deck")
+
+      setTimeout(() => {
+        setIsLoadingDeck(false)
+      }, 250)
+    }, 220)
   }
 
   function getGroupedSavedDecks() {
@@ -853,39 +864,46 @@ Example:
   if (!loggedIn) {
     return (
       <div className="container">
-        <div className="login-box">
+        <form
+          className="login-box"
+          autoComplete="on"
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleLogin()
+          }}
+        >
           <h1>Flashcard Generator</h1>
-          <p>Enter your first name and number ID</p>
+          <p>Enter your first name and password</p>
 
           <input
             className="pin-input"
+            id="username"
+            name="username"
             type="text"
             placeholder="First name..."
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="username"
           />
 
           <input
             className="pin-input"
+            id="password"
+            name="password"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
             placeholder="Number ID..."
             value={numberId}
             onChange={(e) => setNumberId(e.target.value.replace(/\D/g, ""))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleLogin()
-              }
-            }}
+            autoComplete="current-password"
           />
 
           {loginError && <p className="login-error">{loginError}</p>}
 
           <button
-            type="button"
+            type="submit"
             className="generate-btn"
-            onClick={handleLogin}
             disabled={loginLoading || createLoading}
           >
             {loginLoading ? "Logging in..." : "Login"}
@@ -899,7 +917,7 @@ Example:
           >
             {createLoading ? "Creating..." : "Create Account"}
           </button>
-        </div>
+        </form>
       </div>
     )
   }
@@ -1081,7 +1099,11 @@ Example:
       </button>
 
       {cards.length > 0 && cards[currentIndex] && (
-        <div className={`cards-section ${isShuffling ? "is-shuffling" : ""}`}>
+        <div
+          className={`cards-section ${isShuffling ? "is-shuffling" : ""} ${
+            isLoadingDeck ? "deck-loading" : "deck-loaded"
+          }`}
+        >
           {activeDeckName && (
             <p className="active-deck-name">📚 {activeDeckName}</p>
           )}
