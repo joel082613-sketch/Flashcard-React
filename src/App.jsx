@@ -184,7 +184,12 @@ function App() {
         messages: [
           {
             role: "system",
-            content: `You are a fair flashcard quiz grader.
+            content: isMobileDevice()
+              ? `Grade the student answer. Return only JSON: {"correct": true, "feedback": "one sentence"}
+Mark correct: true if the student answer has the same main idea as the correct answer.
+Mark correct: false only if completely wrong or totally different topic.
+Be generous. Short answers are fine if they are on topic.`
+              : `You are a fair flashcard quiz grader.
 
 Return ONLY valid JSON like this:
 {"correct": false, "feedback": "short feedback"}
@@ -205,7 +210,9 @@ Rules:
           },
           {
             role: "user",
-            content: `Question: ${currentCard.question}
+            content: isMobileDevice()
+              ? `Question: ${currentCard.question}\nCorrect: ${currentCard.answer}\nStudent: ${answerToCheck}\nJSON:`
+              : `Question: ${currentCard.question}
 
 Correct answer: ${currentCard.answer}
 
@@ -215,7 +222,7 @@ Is the student answer correct? Return only JSON.`
           }
         ],
         temperature: 0,
-        max_tokens: isMobileDevice() ? 160 : 220
+        max_tokens: isMobileDevice() ? 60 : 220
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -1219,9 +1226,7 @@ Example:
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault()
-
                           const answer = e.currentTarget.value.trim()
-
                           if (!checkingAnswer && answer) {
                             checkAnswerWithAI(answer)
                           }
