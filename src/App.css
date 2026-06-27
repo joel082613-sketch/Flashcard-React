@@ -654,6 +654,7 @@ button:not(:disabled):hover {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   color: #fde68a;
+  line-height: 1.45;
 }
 
 .quiz-answer {
