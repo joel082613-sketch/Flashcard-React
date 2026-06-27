@@ -1253,3 +1253,11 @@ button:disabled {
   }
 }
 
+.ai-explanation {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 14px;
+  line-height: 1.6;
+}

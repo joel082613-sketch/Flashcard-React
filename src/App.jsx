@@ -51,6 +51,7 @@ function App() {
 
   const [aiFeedback, setAiFeedback] = useState("")
   const [aiCorrect, setAiCorrect] = useState(null)
+  const [aiExplanation, setAiExplanation] = useState("")
   const [checkingAnswer, setCheckingAnswer] = useState(false)
 
   const [isShuffling, setIsShuffling] = useState(false)
@@ -169,17 +170,14 @@ function App() {
     setCheckingAnswer(true)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
 
     const currentCard = shuffledCards[quizIndex]
 
-    function makeBackupFeedback() {
-      return `Not quite. The correct answer is: ${currentCard.answer}`
-    }
-
     try {
       if (isMobileDevice()) {
-        setLoadingMessage("Checking your answer...")
-        await sleep(800)
+        setLoadingMessage("Waiting before checking answer...")
+        await sleep(1200)
       }
 
       const engine = await getEngine()
@@ -189,49 +187,46 @@ function App() {
           {
             role: "system",
             content: isMobileDevice()
-              ? `You are a helpful quiz grader for students.
+              ? `Grade the student answer. Return only JSON: {"correct": true, "feedback": "one sentence", "explanation": "one sentence explaining why if wrong, empty string if correct"}
+Mark correct: true if the student answer has the same main idea as the correct answer.
+Mark correct: false only if completely wrong or totally different topic.
+Be generous. Short answers are fine if they are on topic.`
+              : `You are a fair flashcard quiz grader.
 
-Return ONLY valid JSON:
-{"correct": false, "feedback": "one short sentence explaining what is wrong or missing"}
-
-Rules:
-- Be fair and forgiving.
-- Grade by meaning, not exact wording.
-- If the answer is correct, set correct to true and briefly say why.
-- If the answer is wrong, set correct to false and explain what idea is missing or confused.
-- Do not say "I could not grade it."
-- Do not say "compare your answer."
-- Do not require full sentences.
-- Always give useful feedback.
-- Return only JSON.`
-              : `You are a helpful flashcard quiz grader.
-
-Return ONLY valid JSON:
-{"correct": false, "feedback": "one short sentence explaining what is wrong or missing"}
+Return ONLY valid JSON like this:
+{"correct": false, "feedback": "short feedback", "explanation": "explanation of why wrong and what the correct answer means"}
 
 Rules:
 - Grade by meaning, not exact wording.
 - Mark correct true if the student answer gives the same main idea.
 - A formula and the words that describe the formula mean the same thing.
-- If the answer is wrong, explain what idea is missing or confused.
-- Do not say "I could not grade it."
-- Do not say "compare your answer."
-- Always give useful feedback.
+- Example: "F = ma" and "force equals mass times acceleration" are both correct.
+- Example: "Newton's Second Law says force depends on mass and acceleration" is correct.
+- Example: "mass times acceleration" can be correct for Newton's Second Law.
+- The student does NOT need every detail from the correct answer.
+- Short answers can be correct if they clearly answer the question.
+- Mark false only if the answer is wrong, a different law, missing the main idea, or too vague.
+- Ignore small spelling and grammar mistakes.
+- Feedback must be one short sentence.
+- If correct is false, explanation must be 2-3 sentences explaining what was wrong and what the correct answer actually means.
+- If correct is true, explanation must be an empty string.
 - Return only JSON.`
           },
           {
             role: "user",
-            content: `Question: ${currentCard.question}
+            content: isMobileDevice()
+              ? `Question: ${currentCard.question}\nCorrect: ${currentCard.answer}\nStudent: ${answerToCheck}\nJSON:`
+              : `Question: ${currentCard.question}
 
 Correct answer: ${currentCard.answer}
 
 Student answer: ${answerToCheck}
 
-Decide if the student is correct. If wrong, explain what they got wrong or missed. Return only JSON.`
+Is the student answer correct? Return only JSON.`
           }
         ],
-        temperature: isMobileDevice() ? 0.1 : 0,
-        max_tokens: isMobileDevice() ? 140 : 220
+        temperature: 0,
+        max_tokens: isMobileDevice() ? 80 : 350
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -252,9 +247,7 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
         result = {
           correct: false,
           feedback:
-            text && text.length > 10
-              ? text.slice(0, 180)
-              : makeBackupFeedback()
+            "I could not grade it clearly, so compare your answer with the correct answer below."
         }
       }
 
@@ -264,9 +257,10 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
       setAiFeedback(
         result.feedback ||
           (isCorrect
-            ? "Correct, your answer has the main idea."
-            : makeBackupFeedback())
+            ? "Your answer has the main idea."
+            : "Your answer is missing the main idea.")
       )
+      setAiExplanation(isCorrect ? "" : (result.explanation || ""))
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -277,7 +271,10 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
       console.error("AI grading failed:", err)
 
       setAiCorrect(false)
-      setAiFeedback(makeBackupFeedback())
+      setAiFeedback(
+        "I could not check it with AI. Compare your answer with the correct answer below."
+      )
+      setAiExplanation("")
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -434,6 +431,7 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setIsShuffling(false)
     setIsSwitchingCard(false)
   }
@@ -832,6 +830,7 @@ Example:
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setCheckingAnswer(false)
     setQuizScore({ correct: 0, total: 0 })
   }
@@ -841,6 +840,7 @@ Example:
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setCheckingAnswer(false)
 
     if (quizIndex + 1 < shuffledCards.length) {
@@ -1263,6 +1263,9 @@ Example:
                     >
                       <strong>{aiCorrect ? "Correct!" : "Not quite"}</strong>
                       <p>{aiFeedback}</p>
+                      {!aiCorrect && aiExplanation && (
+                        <p className="ai-explanation">{aiExplanation}</p>
+                      )}
                     </div>
 
                     <div className="quiz-answer">
