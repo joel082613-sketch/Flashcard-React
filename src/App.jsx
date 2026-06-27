@@ -203,8 +203,9 @@ Rules:
 - Do not say "compare your answer."
 - Do not require full sentences.
 - Always give useful feedback.
+- On MOBILE, the max tokens is 40, fit the answer to a maximum of 40 TOKENS
 - Make the Answers simple if the AI is being generated on MOBILE.
-- Return only JSON.`
+- Return ONLY JSON.`
               : `You are a helpful flashcard quiz grader.
 
 Return ONLY valid JSON:
