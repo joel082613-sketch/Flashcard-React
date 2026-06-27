@@ -203,6 +203,7 @@ Rules:
 - Do not say "compare your answer."
 - Do not require full sentences.
 - Always give useful feedback.
+- Make the Answers simple if the AI is being generated on MOBILE.
 - Return only JSON.`
               : `You are a helpful flashcard quiz grader.
 
