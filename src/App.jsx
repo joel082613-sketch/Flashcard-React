@@ -51,10 +51,12 @@ function App() {
 
   const [aiFeedback, setAiFeedback] = useState("")
   const [aiCorrect, setAiCorrect] = useState(null)
+  const [aiExplanation, setAiExplanation] = useState("")
   const [checkingAnswer, setCheckingAnswer] = useState(false)
 
   const [isShuffling, setIsShuffling] = useState(false)
   const [isSwitchingCard, setIsSwitchingCard] = useState(false)
+  const [isLoadingDeck, setIsLoadingDeck] = useState(false)
   const [isMobile, setIsMobile] = useState(() => isMobileDevice())
 
   const [modelReady, setModelReady] = useState(false)
@@ -125,7 +127,7 @@ function App() {
 
         setLoadingMessage(
           `Downloading ${
-            isMobileDevice() ? "mobile Llama 1B" : "desktop Mistral 7B"
+            isMobileDevice() ? "mobile" : "desktop"
           } model... ${pct}%`
         )
       }
@@ -169,17 +171,14 @@ function App() {
     setCheckingAnswer(true)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
 
     const currentCard = shuffledCards[quizIndex]
 
-    function makeBackupFeedback() {
-      return `Not quite. The correct answer is: ${currentCard.answer}`
-    }
-
     try {
       if (isMobileDevice()) {
-        setLoadingMessage("Checking your answer...")
-        await sleep(800)
+        setLoadingMessage("Waiting before checking answer...")
+        await sleep(1200)
       }
 
       const engine = await getEngine()
@@ -189,51 +188,46 @@ function App() {
           {
             role: "system",
             content: isMobileDevice()
-              ? `You are a helpful quiz grader for students.
+              ? `Grade the student answer. Return only JSON: {"correct": true, "feedback": "one sentence", "explanation": "one sentence explaining why if wrong, empty string if correct"}
+Mark correct: true if the student answer has the same main idea as the correct answer.
+Mark correct: false only if completely wrong or totally different topic.
+Be generous. Short answers are fine if they are on topic.`
+              : `You are a fair flashcard quiz grader.
 
-Return ONLY valid JSON:
-{"correct": false, "feedback": "one short sentence explaining what is wrong or missing"}
-
-Rules:
-- Be fair and forgiving.
-- Grade by meaning, not exact wording.
-- If the answer is correct, set correct to true and briefly say why.
-- If the answer is wrong, set correct to false and explain what idea is missing or confused.
-- Do not say "I could not grade it."
-- Do not say "compare your answer."
-- Do not require full sentences.
-- Always give useful feedback.
-- On Mobile, give a simpler answer.
-- Make the Answers simple if the AI is being generated on MOBILE.
-- Return ONLY JSON.`
-              : `You are a helpful flashcard quiz grader.
-
-Return ONLY valid JSON:
-{"correct": false, "feedback": "one short sentence explaining what is wrong or missing"}
+Return ONLY valid JSON like this:
+{"correct": false, "feedback": "short feedback", "explanation": "explanation of why wrong and what the correct answer means"}
 
 Rules:
 - Grade by meaning, not exact wording.
 - Mark correct true if the student answer gives the same main idea.
 - A formula and the words that describe the formula mean the same thing.
-- If the answer is wrong, explain what idea is missing or confused.
-- Do not say "I could not grade it."
-- Do not say "compare your answer."
-- Always give useful feedback.
+- Example: "F = ma" and "force equals mass times acceleration" are both correct.
+- Example: "Newton's Second Law says force depends on mass and acceleration" is correct.
+- Example: "mass times acceleration" can be correct for Newton's Second Law.
+- The student does NOT need every detail from the correct answer.
+- Short answers can be correct if they clearly answer the question.
+- Mark false only if the answer is wrong, a different law, missing the main idea, or too vague.
+- Ignore small spelling and grammar mistakes.
+- Feedback must be one short sentence.
+- If correct is false, explanation must be 2-3 sentences explaining what was wrong and what the correct answer actually means.
+- If correct is true, explanation must be an empty string.
 - Return only JSON.`
           },
           {
             role: "user",
-            content: `Question: ${currentCard.question}
+            content: isMobileDevice()
+              ? `Question: ${currentCard.question}\nCorrect: ${currentCard.answer}\nStudent: ${answerToCheck}\nJSON:`
+              : `Question: ${currentCard.question}
 
 Correct answer: ${currentCard.answer}
 
 Student answer: ${answerToCheck}
 
-Decide if the student is correct. If wrong, explain what they got wrong or missed. Return only JSON.`
+Is the student answer correct? Return only JSON.`
           }
         ],
-        temperature: isMobileDevice() ? 0.1 : 0,
-        max_tokens: isMobileDevice() ? 40 : 300
+        temperature: 0,
+        max_tokens: isMobileDevice() ? 80 : 350
       })
 
       let text = reply.choices[0].message.content.trim()
@@ -254,9 +248,7 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
         result = {
           correct: false,
           feedback:
-            text && text.length > 10
-              ? text.slice(0, 180)
-              : makeBackupFeedback()
+            "I could not grade it clearly, so compare your answer with the correct answer below."
         }
       }
 
@@ -266,9 +258,10 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
       setAiFeedback(
         result.feedback ||
           (isCorrect
-            ? "Correct, your answer has the main idea."
-            : makeBackupFeedback())
+            ? "Your answer has the main idea."
+            : "Your answer is missing the main idea.")
       )
+      setAiExplanation(isCorrect ? "" : (result.explanation || ""))
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -279,7 +272,10 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
       console.error("AI grading failed:", err)
 
       setAiCorrect(false)
-      setAiFeedback(makeBackupFeedback())
+      setAiFeedback(
+        "I could not check it with AI. Compare your answer with the correct answer below."
+      )
+      setAiExplanation("")
       setQuizResult(currentCard.answer)
 
       setQuizScore((score) => ({
@@ -424,20 +420,31 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
   }
 
   function loadDeck(deck) {
-    setNotes(deck.notes)
-    setCards(deck.cards)
-    setCardCount(String(getDeckCount(deck) || 8))
-    setCurrentIndex(0)
+    if (isLoadingDeck) return
+
+    setIsLoadingDeck(true)
     setFlipped(false)
-    setActiveDeckName(deck.name || "Untitled Deck")
     setQuizMode(false)
     setQuizFinished(false)
     setUserAnswer("")
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setIsShuffling(false)
     setIsSwitchingCard(false)
+
+    setTimeout(() => {
+      setNotes(deck.notes)
+      setCards(deck.cards)
+      setCardCount(String(getDeckCount(deck) || 8))
+      setCurrentIndex(0)
+      setActiveDeckName(deck.name || "Untitled Deck")
+
+      setTimeout(() => {
+        setIsLoadingDeck(false)
+      }, 250)
+    }, 220)
   }
 
   function getGroupedSavedDecks() {
@@ -607,31 +614,25 @@ Decide if the student is correct. If wrong, explain what they got wrong or misse
           messages: [
             {
               role: "system",
-              content: `You are a helpful flashcard generator for students.
+              content: isMobileDevice()
+                ? `Make flashcards. Return JSON array only.
+[{"question": "question", "answer": "one simple sentence"}]
+Keep answers short and simple. One sentence max. Plain words.`
+                : `You are a flashcard generator for students.
 
 Return ONLY a JSON array. No markdown. No extra text.
 
 Each item must look like this:
-{"question": "clear question", "answer": "clear answer"}
+{"question": "clear question", "answer": "simple answer"}
 
 Rules:
-- Make questions simple and easy to study.
-- Make answers accurate and useful.
-- Answers should usually be 1-2 short sentences.
-- Explain the meaning, not just one word.
-- If the answer is a law, term, definition, or formula, include the name and what it means.
-- If the answer has a formula, include both the formula and the words.
-- Example: Newton's Second Law says force equals mass times acceleration: F = m × a.
-- Do not make the answer too long.
-- Do not include quotes around the whole array except normal JSON quotes.
-
-Example:
-[
-  {
-    "question": "What is Newton's First Law?",
-    "answer": "Newton's First Law, also called the law of inertia, says an object stays still or keeps moving unless a force changes its motion."
-  }
-]`
+- Answers must be 1 sentence maximum.
+- Use plain simple words. No complex vocabulary.
+- Do not explain everything, just the main point.
+- If it is a definition, give the simplest version.
+- If it is a formula, write it simply: F = ma means force equals mass times acceleration.
+- Never use bullet points or lists inside an answer.
+- Keep answers short enough that a student can memorize them easily.`
             },
             {
               role: "user",
@@ -834,6 +835,7 @@ Example:
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setCheckingAnswer(false)
     setQuizScore({ correct: 0, total: 0 })
   }
@@ -843,6 +845,7 @@ Example:
     setQuizResult(null)
     setAiFeedback("")
     setAiCorrect(null)
+    setAiExplanation("")
     setCheckingAnswer(false)
 
     if (quizIndex + 1 < shuffledCards.length) {
@@ -855,39 +858,46 @@ Example:
   if (!loggedIn) {
     return (
       <div className="container">
-        <div className="login-box">
+        <form
+          className="login-box"
+          autoComplete="on"
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleLogin()
+          }}
+        >
           <h1>Flashcard Generator</h1>
-          <p>Enter your first name and number ID</p>
+          <p>Enter your first name and password</p>
 
           <input
             className="pin-input"
+            id="username"
+            name="username"
             type="text"
             placeholder="First name..."
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="username"
           />
 
           <input
             className="pin-input"
+            id="password"
+            name="password"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
             placeholder="Number ID..."
             value={numberId}
             onChange={(e) => setNumberId(e.target.value.replace(/\D/g, ""))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleLogin()
-              }
-            }}
+            autoComplete="current-password"
           />
 
           {loginError && <p className="login-error">{loginError}</p>}
 
           <button
-            type="button"
+            type="submit"
             className="generate-btn"
-            onClick={handleLogin}
             disabled={loginLoading || createLoading}
           >
             {loginLoading ? "Logging in..." : "Login"}
@@ -901,7 +911,7 @@ Example:
           >
             {createLoading ? "Creating..." : "Create Account"}
           </button>
-        </div>
+        </form>
       </div>
     )
   }
@@ -1083,7 +1093,11 @@ Example:
       </button>
 
       {cards.length > 0 && cards[currentIndex] && (
-        <div className={`cards-section ${isShuffling ? "is-shuffling" : ""}`}>
+        <div
+          className={`cards-section ${isShuffling ? "is-shuffling" : ""} ${
+            isLoadingDeck ? "deck-loading" : "deck-loaded"
+          }`}
+        >
           {activeDeckName && (
             <p className="active-deck-name">📚 {activeDeckName}</p>
           )}
@@ -1265,6 +1279,9 @@ Example:
                     >
                       <strong>{aiCorrect ? "Correct!" : "Not quite"}</strong>
                       <p>{aiFeedback}</p>
+                      {!aiCorrect && aiExplanation && (
+                        <p className="ai-explanation">{aiExplanation}</p>
+                      )}
                     </div>
 
                     <div className="quiz-answer">
